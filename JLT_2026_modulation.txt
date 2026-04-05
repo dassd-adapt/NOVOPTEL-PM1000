@@ -1,0 +1,820 @@
+                                                                                                                                                                                                         1
+
+    DP-16QAM Modulated vs. Unmodulated
+  Polarization Signatures for ML-Based Fiber
+
+                        Sensing
+
+Leyla Sadighi, Member, IEEE, Carlos Natalino, Senior Member, IEEE, Stefan Karlsson, Member, IEEE,
+Lena Wosinska, Senior Member, IEEE, Eoin Kenny, Venkata Virajit Garbhapu, Member, IEEE, Marco
+
+                   Ruffini, Senior Member, IEEE, Marija Furdek, Senior Member, IEEE
+
+   Abstract--Fast and accurate detection of various phys-              drifts observed during physical disturbances, allowing ML
+ical layer threats that target optical networks is key to              models to reliably differentiate between different physical
+secure and reliable global communications. Conventional                events (e.g., bending, vibrations) and signal modalities
+monitoring methods often fail to detect subtle anoma-                  (modulated vs. unmodulated), achieving accuracy values
+lies, which requires advanced sensing techniques. Machine              between 97.12% and 98.47%.
+Learning (ML) analysis of the State of Polarization (SOP)
+of unmodulated signals was shown to successfully detect                   Index Terms--Stokes parameters, State of Polarization
+such disturbances. However, real-world networks typically              (SOP), Modulation, Physical layer security, Machine Learn-
+operate with high-speed modulated signals, which may                   ing (ML), Vibrations, Fiber bending, Fiber sensing.
+alter SOP behavior and challenge the applicability of
+ML techniques developed for unmodulated signals. This                                        I. INTRODUCTION
+paper investigates the implications of signal modulation
+supporting high-data rates on the interpretability of SOP              O PTICAL fiber networks are the cornerstone of
+signatures. We perform the first experimental compari-                        global connectivity, enabling high-capacity and
+son of anomaly detection approaches based on SOP for                   low-latency communication for global internet services,
+Dual-Polarization 16-Quadrature Amplitude Modulation                   cloud computing, financial systems, and critical infras-
+(DP-16QAM) modulated and unmodulated optical signals                   tructure. As these networks scale in speed and com-
+subjected to identical physical perturbations caused by                plexity, their role in supporting critical services grows
+fiber tapping and vibrations. We analyze four represen-                accordingly. Vulnerability of optical fibers to various
+tative events under both signal modalities and assess the              threats, including mechanical stress, accidental damage,
+impact of modulation on SOP dynamics using a 63.4                      and deliberate intrusions such as fiber tapping [1], poses
+km fiber link in a real-world metro network. We design                 a risk of security violations and service disruptions.
+four datasets that isolate, merge, and jointly classify the            Therefore, ensuring the integrity and security of optical
+different signal modalities, and compare the performance               transmission networks is of paramount importance, par-
+of ten best-performing supervised ML techniques in each                ticularly as cyber-physical security becomes a growing
+case. Our findings indicate that modulated signals tend                concern in next-generation network deployments.
+to exhibit smoother SOP trajectories, likely due to the
+temporal averaging effects introduced by high symbol                      One of the key components of optical network security
+rates, wherein rapid symbol transitions suppress high-                 management is the timely detection of physical-layer
+frequency polarization noise. Importantly, this smoothening            anomalies. Techniques such as Optical Time Domain
+does not obscure the slower, event-induced polarization                Reflectometry (OTDR) are commonly used to identify
+                                                                       severe faults, like fiber cuts or sharp bends, by analyzing
+   L. Sadighi, V. Garbhapu, and M. Ruffini are with the Department of  Rayleigh backscattering [2]­[4]. They offer relatively
+Computer Science and Statistics, CONNECT Center, Trinity College       precise fault localization and are well established in
+Dublin, Ireland (e-mail: {sadighil, garbhapv, marco.ruffini}@tcd.ie).  field deployments. However, their practical use is often
+                                                                       constrained by deployment cost and limited scalabil-
+   C. Natalino, L. Wosinska, and M. Furdek are with the Depart-        ity [5], and they typically lack the sensitivity needed to
+ment of Electrical Engineering, Chalmers University of Techno-         detect more subtle disturbances, such as low vibrations
+logy, Gothenburg, Sweden (e-mail: {carlos.natalino, wosinska, fur-     or small mechanical deformations. Other approaches,
+dek}@chalmers.se).                                                     including Distributed Fiber Optic Sensing (DFOS) for
+                                                                       intrusion monitoring [6], offer higher sensitivity but
+   S. Karlsson is with Micropol Fiberoptics AB, Stockholm, Sweden      require specialized hardware and complex processing,
+(e-mail: stefan.karlsson@vikinginvent.se).                             which significantly increases the cost and complicates
+
+   Eoin Kenny is with HEAnet CLG, Dublin, Ireland. (e-mail:
+eoin.kenny@heanet.ie).
+
+   This work was supported by Taighde E´ ireann ­ Research Ireland
+under Grant No. 18/RI/5721: OpenIreland Research Infrastructure,
+the Swedish Research Council (2023­05249), the European Com-
+mission's Digital Europe Programme (101127973) through the 5G-
+TACTIC project, and the European Union's Horizon Europe research
+and innovation program (10113933) through the ECO-eNET project.
+                                                                                                                     2
+
+their adoption. State of Polarization (SOP) analysis has    be noted that the modulated signals considered in
+emerged as a powerful tool for monitoring and secur-
+ing optical fiber networks. The statistical and dynamic     this paper are coherent polarization-multiplexed 16-
+properties of the SOP carry valuable information about
+environmental disturbances and physical-layer threats       ary Dual-Polarization 16-Quadrature Amplitude Mod-
+such as fiber tapping or mechanical perturbations. Un-
+like traditional methods that rely on backscatter or        ulation (DP-16QAM) channels generated and detected
+reflection signatures, SOP-based techniques exploit the
+intrinsic polarization sensitivity of optical signals [7].  using coherent transceivers. This is fundamentally dif-
+This enables the detection of subtle anomalies with
+minimal modifications of the existing infrastructure. As    ferent from Intensity-Modulated Direct-Detection (IM-
+a result, SOP-based monitoring provides a cost-effective
+and streamlined alternative, avoiding the hardware com-     DD) systems, which typically employ Non-Return-to-
+plexity and deployment overhead associated with DFOS
+and OTDR, albeit without the ability of event local-        Zero (NRZ) modulation and exhibit nearly fully polar-
+ization along a fiber. SOP-based sensing in coherent
+transmission systems can be implemented using either        ized optical carriers (DoP 100% at 1 ms integration),
+an external polarization analyzer, as adopted in our
+previous work [8], or by leveraging the internal Digital    resulting in polarization behavior opposite to that of DP-
+Signal Processing (DSP) of a coherent receiver. While
+external analyzers directly measure polarization fluctu-    16QAM signals. Furthermore, existing studies lack a
+ations without accessing signal data, coherent receivers
+inherently estimate and compensate fiber birefringence      direct experimental comparison between SOP signatures
+as part of their DSP pipeline. This internal tracking can
+be exploited for polarization sensing, as demonstrated in   of modulated and unmodulated signals under similar
+[9], where the authors compare DSP-based phase and
+polarization sensing in a deployed metro network. No-       physical and environmental conditions. Without such
+tably, this approach naturally resolves the low-Degree of
+Polarization (DoP) limitation encountered by standalone     comparison, it remains unclear whether the presence
+analyzers when observing rapidly modulated signals.
+                                                            of modulation fundamentally alters the SOP variations
+   Accurate monitoring and detection of polarization
+variations induced by external events is crucial for        in a way that impacts the effectiveness of monitoring
+identifying fiber disturbances and preserving network
+reliability. Traditional SOP-based monitoring approaches    techniques like ML-based SOP fiber sensing.
+that depend on static thresholds or heuristic rules, such
+as the one in [10] often fall short when facing com-        Unmodulated signals maintain a nearly fixed SOP
+plex or evolving physical-layer threats [11]. To address
+these limitations, recent research has turned increasingly  apart from slow environmental drifts [12], which offer
+to data-driven methodologies. By leveraging Machine
+Learning (ML), such approaches enable automated, scal-      the advantage of relatively clean polarization trajectories,
+able, and adaptive analysis of polarization behavior, em-
+powering the system to recognize intricate disturbance      making them particularly amenable to DSP and ML-
+patterns directly from SOP data.
+                                                            based classification for anomaly detection. Unlike un-
+   Despite the proliferation of ML-based techniques for
+accurate SOP monitoring, most existing studies use          modulated signals, a modulated data signal's SOP can
+simplified experimental setups with limited conditions,
+i.e., the absence of signal modulation. This exclu-         fluctuate on sub-nanosecond timescales due to the rapid
+sive reliance on unmodulated signals raises an impor-
+tant question about the applicability of these methods      symbol transitions at multi-Gbps rates. In effect, SOP is
+in practical, real-world systems. Modern optical net-
+works predominantly operate with modulated signals,         no longer represented by a single, stable point on the
+particularly in coherent systems using modulation for-
+mats like Quadrature Phase-Shift Keying (QPSK) or           Poincare´ sphere, but hops among a continuum of states
+Quadrature Amplitude Modulation (QAM). It should
+                                                            dictated by the bit sequence [13].
+
+                                                            The fast polarization fluctuations in modulated signals
+
+                                                            present new challenges for sensing and monitoring. They
+
+                                                            can act as a high-frequency noise floor that masks the
+
+                                                            more gradual SOP rotations caused by physical distur-
+
+                                                            bances. Fiber bends, vibrations, or taps typically induce
+
+                                                            SOP changes on the Hz-kHz scale, whereas symbol-rate
+
+                                                            polarization changes occur at the GHz scale. When a
+
+                                                            modulated channel is observed at a slower timescale than
+
+                                                            its symbol rate, as is often the case with photodiode-
+
+                                                            based or low-cost polarization analyzers, the rapidly
+
+                                                            fluctuating SOP appears scrambled. The analyzer effec-
+
+                                                            tively averages over many symbols, and this temporal
+
+                                                            averaging reduces the measured DoP, resembling the
+
+                                                            effect of a polarization scrambler [14]. This means that,
+
+                                                            paradoxically, a high bit rate signal might exhibit a
+
+                                                            smoother SOP trajectory when viewed in aggregate.
+
+                                                            Namely, a slow polarimeter does not provide in-
+
+                                                            stantaneous SOP values, but outputs a time-averaged
+
+                                                            Stokes estimate S¯(t)  =  1  t+T /2  S(  )  d  ,  where  T
+                                                                                      T  t-T /2
+
+                                                            is the effective acquisition time. For high-baud-rate
+
+                                                            polarization-multiplexed signals (e.g., 30 Gbaud DP-
+
+                                                            16QAM), the SOP varies at (or above) the symbol rate,
+
+                                                            i.e., much faster than 1/T . Therefore, the polarization-
+
+                                                            dependent components largely cancel each other within
+                                                            the averaging window and the reported DoP = |S¯(t)|/S¯0
+                                                                        3
+
+can approach zero. However, DoP  0 only indicates a                     a well-defined phase relationship between orthogonal
+small mean Stokes vector magnitude on the polarimeter                   polarization components, which is absent in the ASE
+time scale, without implying zero values of S¯1, S¯2, S¯3.              case.
+Instead, the polarimeter outputs noisy, time-averaged
+Stokes samples with non-zero variance. When an ex-                         Any anomaly detection scheme must ensure that the
+ternal disturbance such as bending changes the fiber                    residual fast SOP variations in modulated signals do not
+birefringence, it introduces slow polarization rotations                trigger false alarms or confound true event signatures.
+that modulate the statistics of these time-averaged Stokes              To address the gap in the literature, we perform a com-
+estimates, yielding observable low-frequency excursions                 prehensive experimental comparison between modulated
+even in the presence of strong modulation-induced fluc-                 and unmodulated optical signals under similar physical
+tuations.                                                               and environmental conditions. We systematically eval-
+                                                                        uate the impact of modulation on SOP dynamics and
+Fig. 1. Temporal evolution of normalized Stokes parameters (S1, S2,     assess its implications for ML-based anomaly detection.
+S3) under automated bending for three optical excitations: ASE, CW,     The main contributions include detailed statistical anal-
+and DP-16QAM. The time axis corresponds to a controlled disturbance     yses comparing the behavior of polarization signatures
+sequence: fiber relaxed from 0­60 s, bent from 60­120 s, relaxed        in modulated and unmodulated signals, offering quanti-
+from 120­180 s, and bent again from 180­200 s. The ASE signal           tative evidence of how modulation affects polarization
+exhibits randomized Stokes fluctuations with no clear correlation to    dynamics. We collect a real-world experimental dataset
+the applied disturbance. The CW laser shows smooth and well-defined     from a 63.4 km fiber link in the HEAnet [15] metro net-
+Stokes trajectories that track the bending-induced polarization evolu-  work, capturing eight representative polarization event
+tion. The DP-16QAM traces are substantially noisier, yet their low-     signatures: relaxed fiber, soft bending, eavesdropping
+frequency evolution remains synchronized with the bending-induced       attempt, and 80 Hz vibration, each recorded for mod-
+drift observed for the CW reference.                                    ulated and unmodulated signal conditions. These events
+                                                                        were selected to represent a diverse mix of normal (e.g.,
+   This effect is shown in Fig. 1, where the horizontal                 relaxed, soft bending) and potentially harmful or ma-
+axis represents the measurement time during a controlled                licious (e.g., eavesdropping, vibration) fiber conditions
+automated bending sequence: the fiber is relaxed from                   commonly encountered in operational environments and
+0­60 s, bent from 60­120 s, relaxed again from 120­                     security-sensitive scenarios. We then evaluate the perfor-
+180 s, and bent once more from 180­200 s. Com-                          mance of a range of supervised ML classifiers for these
+pared to the smooth CW laser traces, the DP-16QAM                       events and for different signal modalities. We analyze
+Stokes components are substantially noisier (consistent                 four scenarios, each corresponding to a distinct dataset
+with DoP  0), yet their low-frequency evolution                         (i.e., separated, mixed, and joint modality classification),
+remains synchronized with the bending-induced drift ob-                 assessing the impact of modulation on the ability of
+served for the CW reference, indicating that disturbance-               ML models to learn and separate polarization signatures
+related polarization dynamics remain observable for                     corresponding to modulated and unmodulated signals.
+polarization-multiplexed coherent signals. The Amplified
+Spontaneous Emission (ASE) signal shown in the figure                      The remainder of the paper is organized as follows.
+provides a contrasting baseline: its Stokes components                  Section II reviews prior work on SOP analysis for
+exhibit randomized fluctuations with no clear correspon-                modulated and unmodulated signals. Section III presents
+dence to the applied disturbance, consistent with true                  the experimental testbed and data collection process.
+depolarization. The disparity between ASE and DP-                       Section IV details the events used for SOP signature
+16QAM indicates that the observed disturbance-locked                    analysis and a statistical comparison of modulated vs.
+drift is not a generic consequence of stochastic Stokes                 unmodulated signals. Section V introduces the dataset
+fluctuations, but is instead linked to the presence of                  configurations and preprocessing. Section VI reports ex-
+a polarization-multiplexed coherent optical field with                  perimental results, and Section VII concludes the paper.
+
+                                                                                             II. RELATED WORK
+
+                                                                           A wide spectrum of ML approaches has been de-
+                                                                        veloped to enhance the interpretability and adaptability
+                                                                        of SOP-based monitoring. Supervised Learning (SL)
+                                                                        techniques are often applied to detect and classify
+                                                                        known physical disturbances and malicious activities
+                                                                        such as fiber tapping and mechanical intrusions with
+                                                                        high accuracy [8], [16]­[20]. Unsupervised Learning
+                                                                        (USL) methods, such as clustering and outlier detection,
+                                                             4
+
+allow the identification of previously unseen or emerg-      SOP [35], [36], treat polarization fluctuations purely as
+ing anomalies in SOP trajectories without requiring          impairments to be corrected, rather than indicators of
+labeled data [21]­[24]. Semi-supervised Learning (SSL)       physical network disturbances. The effect of modulation
+approaches strike a balance by leveraging a small set        on polarization sensing has not been explicitly addressed,
+of labeled normal data along with abundant unlabeled         and existing research lacks a systematic investigation of
+samples, including unknown disturbances, to improve          how modulated signals compare to unmodulated lights
+generalization under sparse annotation scenarios [24],       in terms of polarization disturbance detectability. In this
+[25]. The majority of ML-driven SOP analyses rely on         work, our objective is to identify statistically meaningful
+CW light sources, particularly unmodulated Continuous        patterns in SOP dynamics that correlate with external
+Wave Distributed Feedback (CW-DFB) lasers to simplify        disturbances, which is key to understanding the role of
+the polarization behavior and avoid the complexities         ML-based polarization monitoring as a sensing tool.
+introduced by high-speed modulation [7], [8], [18],
+[19], [26], [27]. The review of polarization-based fiber                     III. EXPERIMENTAL SETUP
+sensing methods and anomaly detection algorithms [7]
+demonstrated that polarization measurements from a           A. Network topology and setup
+CW source, obtained via a polarimeter, reflect only the
+disturbance-induced SOP changes, whereas modulated              To evaluate the effects of optical signal modula-
+signals introduce additional SOP estimation noise, con-      tion on the behavior of polarization signatures under
+firming that unmodulated light yields clean polarization     a realistic noisy environment, we use the experimental
+signatures that can be readily interpreted for anomaly       setup in Fig. 2, illustrating the 63.4 km test channel
+detection. Our prior experimental studies [8], [19], [28]    route of the HEAnet Dublin metro ring, connected to
+demonstrated successful use of supervised ML tech-           the OpenIreland [37] testbed infrastructure. The route
+niques to detect and classify disturbances like harmful      traverses six Reconfigurable Optical Add-Drop Multi-
+vibrations and eavesdropping in controlled setups with       plexers (ROADMs) in sequence: TCD-1 (Lloyd Institute,
+unmodulated signals, with the impact of noise in real-       Trinity College Dublin (TCD)), UCD-2 and UCD-1
+world environments considered in [18], [26].                 (two nodes located at University College Dublin (UCD),
+                                                             Belfield Campus), CWT-2 (Citywest), PW-2 (Park West),
+   Modulation-induced polarization effects have received     and TCD-2 (Pearse Street, TCD), with the corresponding
+comparatively little attention, primarily approached from    fiber segment lengths indicated in Fig. 2. The optical
+the communications perspective. Recent work by Karls-        signal is added at TCD-1 and dropped at TCD-2 before
+son et al. demonstrated SOP-based event detection using      returning to the OpenIreland Lab via a cross-campus
+coherent transceivers in live networks. A real-time mon-     fiber patch, where controlled disturbances are applied.
+itoring system detected polarization precursors before       The HEAnet ring is lightly loaded, and the experiment
+a cable break [29]. Follow-up analysis showed that           runs over a 400 GHz Optical Spectrum as a Service
+mechanical disturbances produce distinct SOP patterns        (OSaaS) window in the C-band (192.8­193.2 THz). The
+separable from noise [30]. In coherent communica-            SOP sensing is carried out over two wavelength channels
+tions, polarization tracking algorithms follow the time-     injected from a Lumentum ROADM in OpenIreland into
+varying SOP of a high-speed modulated signal so that         the HEAnet entry ROADM. The first channel (m, cen-
+the receiver can correctly demultiplex the polarization-     tered at 193 THz) is a coherent DP-16QAM 200 Gbps
+multiplexed channels. For instance, a stochastic polar-      channel generated by an Adtran Teraflex transceiver,
+ization drift model that treats the SOP evolution as         while the other (u, centered at 193.1 THz) is an un-
+a random walk on the Poincare´ sphere can be found           modulated signal generated by an External Cavity Laser
+in [31]. Empirical studies have shown that environmental     (ECL) source. The two channels are within the same
+factors can indeed induce rapid SOP changes in deployed      400 GHz OSaaS window, allowing for a fair comparison
+systems. SOP fluctuations on ms time scale in aerial         focusing on the impact of modulation. Only one of the
+fibers under varying climatic conditions were reported       two signals is active at a time.
+in [32], while cyclic SOP oscillations in overhead fiber
+cables caused by wind gusts and power-line electro-             The signals traverse the same path, which ensures
+magnetic interference were observed in [33]. Lightning-      that both unmodulated and modulated channels experi-
+induced abrupt, fast polarization rotations, were shown      ence similar propagation conditions. Here, the signals
+to necessitate sub-ms reaction times in coherent re-         are exposed to controlled physical disturbances while
+ceivers [34]. Real-time polarization tracking in modern      traveling on a fiber patch that is part of the equipment
+coherent transceivers' DSP, e.g., the adaptive filters that  shown in Fig. 2, including soft bending, eavesdropping
+continuously correct for polarization rotation and mode      by bending the fiber, and 80 Hz vibrations, which
+dispersion, allowing the receiver to lock on the signal's    are introduced to evaluate the impact on polarization
+                                                             signatures. The signals are then demultiplexed by a
+                                                                                                                                                           5
+
+                                                                           0.95 km  UCD-1
+                                                            UCD-2
+
+ ECL             Unmodulated       ROADM      TCD-1         HEAnet
+source              channel         (MUX)      Lloyd
+                                              Institute                             CWT-2
+                                                            C-band                  Citywest
+                                 
+Coherent TRX     DP-16QAM                                   63.4 Km
+Adtran Teraflex   modulated
+                                                            192.8 to 193.2 THz
+   200 GB/s        channel                                    Spectrum-as-a-
+                                                                   Service
+                 Optical analyzer
+ML analyzer
+
+  Data pre-      Polarization                                    TCD-2                PW-2
+ processing        analyzer                                    200 Pearse           Park West
+
+     ML             NPSV                                            Str.                            Fig. 3. Data collection and DSP processing pipeline, from raw NPSV
+classification   calculation                                      13. 2 km                          data to the SOP signature used for ML classification.
+                                            ROADM           SM G.652
+                     SOP                        (DEMUX)
+                  signatures       switch                   Eavesdropping
+                                                            80 Hz vibration
+                                                            Soft bending
+
+Fig. 2. Schematic of the experimental and analytical setup used to                                  and likewise for the previous sample:
+investigate the impact of signal modalities on SOP dynamics under
+controlled perturbations.                                                                           At-1  =  S12(t  -  1)  +  S22(t - 1)  +  S32(t  -  1)  (2)
+                                                                                                                                S0,t-1
+
+second Lumentum ROADM (DEMUX) and sent to the                                                       The resulting normalized polarization state variation is
+polarization analyzer. Our polarization analyzer instru-                                            computed as
+ment is a commercial polarization sensing module [8]
+(a "black box") capable of measuring all three Stokes                                                        NPSVt = At - At-1.                            (3)
+polarization components (S1, S2, S3) variations. This
+device uses a carefully designed arrangement of passive                                                Although the 200 Gbps Dual-Polarization (DP)-16-
+optical components to project the signal onto different                                             Quadrature Amplitude Modulation (16QAM) modulated
+polarization bases. The complete processing pipeline,                                               signal exhibits rapid polarization fluctuations at the sym-
+including additional optical analyzer components and                                                bol rate (tens of GHz), these are effectively averaged out
+analysis stages, is described in the following subsection.                                          by our optical analyzer, which operates at a sampling
+                                                                                                    rate of 2 ksamples/s and bandwidth of 1­2 kHz. As a
+B. Data Collection Process                                                                          result, our measurements isolate only the slow SOP drifts
+                                                                                                    caused by environmental or mechanical disturbances
+   Upon transmission over the same path and exposure to                                             below 5 kHz. These low-frequency effects are preserved
+similar physical disturbances, each optical signal is di-                                           and comparable in both modulated and unmodulated
+rected to the optical analyzer. This analyzer implements a                                          channels. In both cases, these vibrations cause a rotation
+structured processing pipeline for extracting and analyz-                                           of the polarization state along the fiber, causing again a
+ing the Normalized numerical Polarization State Varia-                                              movement of the NPSV SOP state, which we can detect
+tion (NPSV) data and generating SOP signatures for each                                             using the variation of S1, S2 and S3 parameters, which
+disturbance event and signal modality. In the first stage of                                        are measured by our device.
+processing, the optical polarization analyzer captures the
+temporal evolution of the SOP variations by projecting                                                 To analyze the spectral features of the SOP vari-
+the received signal onto the Poincare´ sphere. For each                                             ations and transfer the signal from the time to the
+experimental run, the signal is continuously sampled for                                            frequency domain, each 0.5-second segment (comprising
+15 minutes at 0.5 ms intervals, resulting in approximately                                          500 NPSV values) undergoes Fast Fourier Transform
+1.8 million NPSV samples per experiment. At each time                                               (FFT) processing with a Hamming window [38]. Each
+slot t, the value NPSVt serves as a scalar indicator of                                             FFT generates 512 frequency components. This results
+the magnitude of SOP variation between two adjacent                                                 in a time-frequency representation of size 3,600 × 512,
+sampling points, i.e., during the interval [t - 1, t]. To                                           where each row corresponds to a 0.5-second time slot
+quantify this, we define the polarization intensity (the                                            and each column to a specific frequency bin. These spec-
+norm of the Stokes vector) at time instance  i.e S0, as                                             tral profiles form what we refer to as SOP signatures.
+S0, = S12( ) + S22( ) + S32( ), where S1, S2, and S3                                                Fig. 3 summarizes this data-processing pipeline, illus-
+are the normalized Stokes parameters corresponding to                                               trating the transformation from raw NPSV measurements
+the horizontal/vertical, diagonal/anti-diagonal, and right-                                         (1.8 million samples) into 3,600 time segments, followed
+/left-handed circular polarization components, respec-                                              by FFT-based spectral decomposition with 512 frequency
+tively. The normalized polarization magnitude at time                                               bins. The resulting 3,600×512 dataset captures the spec-
+t is then given by                                                                                  tral magnitude of polarization variations over time and
+                                                                                                    constitutes the final SOP signature used in the analysis.
+                 At           =  S12(t)    +  S22(t)     +  S32(t)                             (1)
+                                              S0,t                                                     The generated SOP signatures are forwarded to the
+                                                                                                    ML analyzer for event and signal modality classification.
+                                                                                                    The ML analysis is conducted in two stages. First, a data
+                                                                                                    pre-processing pipeline aggregates and prepares the input
+                                                                                                                      6
+
+SOP signatures for ML investigation, including partition-                                         TABLE I
+ing of the dataset into training and testing subsets. In       STATISTICAL PROPERTIES OF NPSV OBTAINED FOR MODULATED
+the second stage, a suite of supervised ML classification
+algorithms, ranging from ensemble methods to kernel-               AND UNMODULATED SIGNALS IN DIFFERENT SCENARIOS.
+based and linear models, is evaluated to identify the
+most suitable classifier for each dataset. The selection is    Event  Mean (µ)  Standard      Skewness  Kurtosis
+based on the highest classification accuracy and overall                        Deviation ()  ()        ()
+performance across precision, recall, and F1-score, as         rlxu   3.77      18.38         -9.64     276.24
+detailed in Section VI. The top-performing model is then       rlxm   4.01      3.60          -0.29     -0.59
+used to infer the class of unseen samples and compute          eavu   3.93      11.00         -4.97     232.43
+the corresponding performance metrics.                         eavm   4.03      2.53          -0.12     0.13
+                                                               sbdu   -58.12    144.54        -2.52     5.59
+                                                               sbdm   4.00      3.01          0.10      -0.14
+                                                               80vbu  3.90      19.20         -0.08     0.98
+                                                               80vbm  4.00      3.23          0.01      -0.50
+
+             IV. EXPERIMENTAL SCENARIOS                        to normal human conversation and is a conservative ap-
+                                                               proximation, considering that actual excavators generate
+A. Types of Disturbances                                       significantly higher vibration amplitudes. The goal of
+                                                               this setup is to evaluate the system's ability to detect
+   Using the described experimental setup, we collect          early-stage mechanical interference before it escalates
+SOP signatures for eight types of events encompass-            into service disruption.
+ing normal operating conditions and abnormal, harmful
+events. We consider two classes of normal fiber activity:      B. Statistical Analysis of the SOP Signatures of Unmod-
+relaxed fiber (rlx) and soft bending (sbd). The relaxed        ulated vs. Modulated Signals
+condition serves as a baseline reference, capturing only
+routine background noise in the absence of any deliberate         To evaluate the effect of signal modulation on the sta-
+physical disturbances. In contrast, soft bending reflects      tistical behavior of polarization signatures, we perform
+benign mechanical interactions that are typically encoun-      a comparative analysis of the four collected signatures
+tered during routine handling and maintenance of fiber         for unmodulated (denoted by rlxu, eavu, sbdu, 80vbu)
+installations. To simulate such conditions typically found     and modulated (denoted by rlxm, eavm, sbdm, 80vbm)
+in patch panels, a fiber segment was gently bent by hand       signal configurations. We analyze the NPSV distribution
+to a curvature radius of approximately 2 cm. This action       for each event and extract four key statistical parameters
+was repeated at 10-second intervals, mimicking handling        from these distributions: the mean, standard deviation,
+behavior commonly exhibited by data center technicians.        skewness, and kurtosis, which offer a comprehensive
+                                                               description of the shape and dynamics of the distribu-
+   The abnormal events we consider encompass eaves-            tion. The mean µ quantifies the average magnitude of
+dropping attempts and potentially harmful vibrations.          variation and serves as a measure of the central tendency
+To simulate an eavesdropping attempt (eav), we adopt           of the distribution. The standard deviation  captures
+the mechanical interaction described in [39], where an         the extent of dispersion around the mean, reflecting
+attacker breaches the outer layer of a standard G.652          the variability in polarization dynamics. Skewness 
+fiber and introduces a controlled bend in the internal core    describes the asymmetry of the distribution; negative
+with a curvature radius of 4 mm and a bending angle of         values indicate a longer tail on the low NPSV values
+25 degree. This controlled deformation enables signal          (i.e., more frequent low-magnitude deviations), while
+leakage suitable for covert interception. This configura-      positive values suggest a longer tail on high NPSV
+tion allows for successful signal tapping while remaining      values. Finally, kurtosis  describes how sharply peaked
+nearly undetectable under standard power monitoring.           a distribution is and how often extreme values occur.
+                                                               It measures the tendency of a distribution to produce
+   To simulate harmful vibrations, we introduce a me-          outliers by describing the heaviness of its tails relative
+chanical disturbance at 80 Hz (80vb), which is equivalent      to a normal distribution ( = 0). High kurtosis value
+to a frequency commonly associated with heavy machin-          means that the distribution has a sharp peak and more
+ery such as excavators. These machines present a tangi-        values far from the average (i.e., more outliers). Low
+ble threat to optical fiber infrastructure, as their activity  or negative kurtosis value means that the distribution is
+may unintentionally damage or sever fiber cables. The          flatter, with fewer extreme values.
+dominant vibration frequency stems from the rotational
+speed of the engine, which typically operates at around           Table I summarizes the statistical characteristics of
+4,800 Revolutions Per Minute (RPM), equivalent to 80           the NPSV distributions for the modulated and unmod-
+Hz. To replicate this real-world scenario in a controlled      ulated signal modalities under the four collected event
+environment, we positioned a loudspeaker 2 to 4 cm             signatures. In all conditions, the modulated signals con-
+away from the fiber under test and generated an 80
+Hz acoustic signal. The signal's intensity corresponds
+                                                                                                                                                                                   7
+
+sistently exhibit markedly lower standard deviations,        Density                   Unmodulated Distribution         Density      Unmodulated Gaussian Fit
+reduced kurtosis, and skewness values closer to zero                                   Modulated Distribution                        Modulated Gaussian Fit
+than those of the unmodulated counterpart. These pat-        Density                                                    Density
+terns suggest that modulation plays a significant role in              0.12 (a) Relaxed                                               (b) Eavesdropping
+suppressing stochastic polarization fluctuations, yielding             0.10                                                      0.150
+more symmetric and approximately Gaussian-like NPSV                    0.08                                                      0.125
+distributions. This suppression effect is not a conse-                 0.06                                                      0.100
+quence of intrinsic polarization behavior, but rather stems            0.04                                                      0.075
+from limitations in the resolution of the polarization                 0.02                                                      0.050
+analyzer. The mechanical disturbances investigated in                  0.00                                                      0.025
+this paper, such as fiber bending and vibrations, induce                                                                         0.000 600 50N0PSV40V0alue30(0norm20a0lize1d0)0 0
+SOP variations at much lower frequencies at rates in                        600 5N0P0SV4V0a0lue3(0n0orm2a0l0ized1)00 0           0.150 (d) 80 Hz Vibration
+the kHz, which is a very slow variation compared to                        (c) Soft Bending                                      0.125
+the 200 Gbps high-speed modulation scheme of DP-                      0.125                                                      0.100
+16QAM. As a result, modulation indirectly contributes                 0.100                                                      0.075
+to the reduction of apparent stochasticity by decorre-                0.075                                                      0.050
+lating slowly varying polarization states and leading to              0.050                                                      0.025
+smoother NPSV signatures in this case.                                0.025                                                      0.000 500 N4P0S0V Va3lu0e0 (no2r0m0alize1d0)0 0
+                                                                      0.000 600 NPSV V4a0l0ue (norm2a0l0ized) 0
+   In the relaxed condition, the unmodulated signal dis-
+plays considerable variability ( = 18.38) and an ex-         Fig. 4. NPSV histograms and Gaussian fits for unmodulated and mod-
+tremely peaked and heavy-tailed ( = 276.24), indicat-        ulated conditions in four event types: (a) relaxed, (b) eavesdropping,
+ing heavy tails and the presence of rare, large deviations   (c) soft bending, and (d) 80 Hz vibration.
+from the mean. In contrast, the modulated counterpart is
+significantly more stable ( = 3.60) and near-Gaussian             DS1            Unmodulated signatures                              rlx = rlxu  rlxm             DS3
+( = ­0.59), with a slightly elevated mean (µ = 4.01           Separated                rlxu                                        eav = eavu  eavm              Mixed
+vs. 3.77). Similar stabilizing effects of modulation are     unmodulated               eavu                                        sbd = u  sbdm                 signal
+observed in the eavesdropping and 80 Hz vibration                                      sbdu                                                                    modalities
+scenarios, where modulation reduces standard deviation          signals               80vbu                                      80vb = 80vbu  80vbm
+by approximately 77% and 83%, respectively.
+                                                                         DS2           rlxm                                                          DS4
+   The soft bending event reveals the most striking                   Separated       eavm                                                       Joint signal
+contrast. The unmodulated signal exhibits a dramatically              modulated       sbdm                                                        modalities
+negative mean (µ = -58.12) and very high dispersion                                  80vbm
+( = 144.54), reflecting intense and irregular polar-                    signals  Modulated signatures
+ization disturbances. Conversely, the modulated case
+maintains a stable distribution with a baseline mean (µ =    Fig. 5. The four datasets for evaluating ML-based classification of
+4.00) and low variance ( = 3.01), closely resembling         SOP signatures in modulated and unmodulated signals.
+the relaxed condition. However, this superficial similarity
+in statistics can be misleading: while the modulated         in achieving consistent polarization signature profiles,
+signal appears stable in terms of mean and variance, the     indicating that it might be more suitable for anomaly
+full polarization trajectory may still contain subtle but    detection.
+relevant temporal patterns.
+                                                                V. DATASET DEFINITION AND PRE-PROCESSING
+   Fig. 4 illustrates the statistical trends discussed in
+Table I by showing the NPSV histograms and their Gaus-          This section introduces four systematically designed
+sian fits for modulated and unmodulated signals under        datasets, each developed to investigate a distinct aspect
+the four events. The plot has been scaled uniformly in       of ML-driven classification for SOP-based optical fiber
+the two axis to allow for a comparative analysis. In each    monitoring. The goal is to assess how signal modulation
+subplot, the unmodulated distributions exhibit broader,      influences the effectiveness of ML techniques in dis-
+often asymmetric profiles with heavier tails. By contrast,   tinguishing physical events, learning polarization-based
+the modulated signal distributions are consistently nar-     features, and generalizing for different signal modalities.
+rower, more symmetric, and closely aligned with their        The datasets are constructed to evaluate the performance
+Gaussian approximations, indicating reduced variability      of the ML classification task: from separated analysis of
+and improved stability in capturing polarization behavior.   signal types, to mixed-modality configuration, and finally
+These visual observations support the numerical findings     to a fully discriminative and signal-aware framework.
+in Table I and highlight the benefits of modulation          For each dataset, a corresponding data pre-processing
+                                                             pipeline is implemented to support its specific structure
+                                                             and objective. The four dataset configurations are illus-
+                                                             trated in Fig. 5 and are described as follows.
+                                                              8
+
+A. Datasets 1 and 2: Separate Signal Modalities               unmodulated signals were merged within each event type
+                                                              to form four final event classes, each comprising 5,760
+   Datasets 1 (DS1) and 2 (DS2) represent a scenario          training samples and 1,440 testing samples. This results
+where the modulated and unmodulated optical signals           in a unified dataset containing 23,040 training samples
+are analyzed separately. Each dataset contains four SOP       and 5,760 testing samples.
+event signatures. This separation enables a direct com-
+parison of how signal modulation influences the discrim-      C. Dataset 4: Joint Signal Modalities
+inability of physical disturbances in the SOP signatures
+and the learnability of their spectral patterns by ML            Dataset 4 (DS4) contains eight classes, where each
+models. The research question we address with these           collected SOP signature is treated as a distinct class,
+datasets is: Do the inherent differences in polarization      explicitly distinguishing both the event type and its
+dynamics between modulated and unmodulated signals            associated signal modality in the class. Unlike the DS3,
+lead to measurable variations in the performance of ML-       which merges modulated and unmodulated variants of
+based classification of SOP signatures?                       the same event into a single class, DS4 should capture
+                                                              fine-grained distinctions between signatures influenced
+   An identical pre-processing pipeline was applied sep-      by signal modality. This structure reflects a deployment
+arately to the modulated and unmodulated signal sets.         scenario where both the nature of the event and the
+As detailed in Section III-B, each signature comprises        signal type are relevant and unknown thereby requir-
+3,600 samples per event, with each sample correspond-         ing classification. The central research question to be
+ing to 0.5 ms of SOP variations and represented by            answered by training a model with DS4 is: Can an
+512 frequency-domain features derived from spectral           ML model simultaneously distinguish both event type
+analysis. This results in 14,400 samples for each signal      and signal modality when polarization signatures from
+type. The two datasets were independently shuffled and        both domains are presented as separate classes? This
+partitioned using an 80/20 split, yielding 11,520 training    approach will allow for a detailed investigation into the
+samples and 2,880 testing samples per set.                    model's ability to distinguish event variations introduced
+                                                              by modulation effects.
+B. Dataset 3: Mixed Signal Modalities
+                                                                 To prepare DS4, the eight collected SOP signa-
+   Dataset 3 (DS3) extends the scope of the classification    tures were partitioned individually using the same pre-
+pipeline by combining modulated and unmodulated po-           processing pipeline of DS1 and DS2where each signature
+larization signatures into a unified dataset. In this setup,  was partitioned into training and testing subsets using
+the model is trained and assessed on a combined scenario      an 80/20 split, yielding 2,880 training samples and 720
+comprising all eight collected SOP signatures, grouped        testing samples per class. In total, the dataset contains
+into four distinct event classes, each defined by the union   23,040 training and 5,760 testing samples.
+of its modulated and unmodulated instances.
+                                                                                       VI. RESULTS
+   Unlike DS1 and DS2, DS3 introduces mixed signal
+modalities during training and inference, i.e., equivalent       This section presents the evaluation results for four
+classes from the modulated and unmodulated scenarios          scenarios trained with the datasets introduced in Sec-
+are merged into a single class. The goal is to evaluate       tion V. To identify the most suitable classification al-
+whether a unified classifier can effectively learn class      gorithm for each scenario, we conduct a comprehensive
+boundaries from both signal types, regardless of their        benchmarking of ten supervised ML classifiers available
+underlying characteristics. This mixed modality setup         in the Scikit-learn library. The evaluated methods span a
+reflects practical deployment scenarios where the signal      diverse range of learning paradigms, including ensemble
+format may vary or be unknown. The research question          learners: Random Forest (RF), Extra Trees Classifier
+we aim to address by models trained with DS3 is: Can          (ETC), Histogram Gradient Boosting (HGB), eXtreme
+a single ML model accurately classify SOP signatures          Gradient Boosting (XGBoost), Gradient Boosting (GB);
+when modulated and unmodulated signals are present            kernel-based models: Support Vector Machine (SVM);
+during training and inference? The results of a model         linear classifiers: Logistic Regression (LR), Linear Dis-
+trained with this dataset will provide insights into the      criminant Analysis (LDA); distance-based techniques:
+performance of ML-driven SOP-based fiber sensing in           k-Nearest Neighbors (KNN); and tree-based learners:
+heterogeneous signal environments.                            Decision Tree (DT). These classifiers are selected based
+                                                              on their previously documented performance in time-
+   To prepare DS3, each of the eight collected SOP sig-       frequency domain tasks and their compatibility with the
+natures was first independently partitioned into training     spectral representations extracted from the SOP data. For
+and testing subsets using an 80/20 split. This yielded        each dataset, the classifiers were trained and tested inde-
+2,880 training samples and 720 testing samples per            pendently using 5-fold cross-validation to ensure robust
+signature. After splitting, samples from modulated and
+                                                                              9
+
+       1.0        Unmodulated                  Modulated                         These results indicate that signal modulation, such as
+                                                                              the DP-16QAM 200 Gbps signal used in the experiment,
+Accuracy0.8                                         GB                        does not hinder the ability of ML classifiers to distin-
+       0.6                                                                    guish between SOP signatures associated with different
+         0.97120.4                                                            physical events. In fact, modulated signals in this study
+            0.9847                                                            exhibited more stable SOP behavior than their unmod-
+                        0.9705                                                ulated counterparts, contributing to consistently high
+                           0.9847                                             classification performance. While modulated signals are
+                                      0.9642                                  often associated with higher structural complexity at the
+                                         0.9760                               symbol level, their temporal averaging effect appears to
+       0.2                                                                    suppress high-frequency polarization noise, leading to
+       0.0 XGBoost                                                            smoother SOP trajectories. Consequently, low-frequency
+                                 HGB                                          SOP variations caused by external disturbances remain
+                                                                              clearly distinguishable. These findings reinforce the fea-
+Fig. 6. Classification accuracy on separated signal modalities scenario       sibility of ML-based SOP analysis for anomaly detection
+for the top three performing models: eXtreme Gradient Boosting (XG-           in coherent optical networks, where modulation is an
+Boost), Histogram Gradient Boosting (HGB), and Gradient Boosting              inherent aspect of system operation.
+(GB).
+                                                                              B. Scenario 3: Classification Performance for Event
+rlxu 96.2% 0.4% 3.2% 0.1%                   rlxm 100.0% 0.0% 0.0% 0.0%        Classification in Mixed Signal Modalities (DS3)
+
+True label                                  eavm 0.3% 99.6% 0.0% 0.1%            Scenario 3 investigates the performance of ML classi-
+                                True label                                    fiers in a unified classification task where both modulated
+eavu 0.8% 98.6% 0.6% 0.0%                                                     and unmodulated signals are included for each physical
+                                                                              event class. Table II summarizes the performance of the
+sbdu 4.2% 0.3% 94.6% 1.0%                   sbdm 0.3% 1.0% 96.7% 2.1%         tested classifiers in terms of accuracy, precision, recall,
+                                                                              F1-score, and computational cost (training and inference
+80vbu 0.3% 0.0% 0.7% 99.0% 80vbm 0.0% 0.1% 2.2% 97.6%                         times). The classifiers are sorted in descending order
+                                                                              of accuracy. Compared to the other models, HGB and
+rlx u   eavu sbd  ulab8e0lvb  u             rlxm Preeavdmictesbddmlab8e0vlbm  XGBoost achieved the two highest accuracy values of
+                                                                              98.09% and 97.93%, respectively. The confusion matrix
+       Predicted                                                              of the best-performing HGB is shown in Fig. 8. The
+                                                                              model achieves excellent class separability for all four
+(a) Unmodulated                             (b) Modulated                     event types. The relaxed (rlx) and eavesdropping (eav)
+                                                                              classes are recognized with near-perfect accuracy (98.8%
+Fig. 7. Confusion matrices of the eXtreme Gradient Boosting (XG-              and 99.0%, respectively). Minor confusion is observed
+Boost) classifier for (a) unmodulated and (b) modulated signals.              between soft bending (sbd) and 80 Hz vibration (80vb),
+                                                                              with at most 2.2% of misclassified samples.
+performance assessment. The ML classifier yielding the
+highest test accuracy was selected as the representative                         These results demonstrate that ML models are able
+classifier for that dataset, and its confusion matrix is                      to learn discriminative features of both unmodulated
+reported in the corresponding subsection.                                     and modulated signals. This supports the feasibility of
+                                                                              deploying signal-agnostic SOP-based ML monitoring
+A. Scenarios 1 and 2: Classification Performance for                          systems in network environments with unmodulated and
+Separated Signal Modalities (DS1 and DS2)                                     modulated signals.
+
+   Scenarios 1 and 2 evaluate the performance of ML-                          C. Scenario 4: Classification Performance for Joint Sig-
+based SOP classification when polarization signatures                         nal Modalities (DS4)
+are analyzed separately for modulated and unmodulated
+signals. Independent classifiers were trained using their                        Scenario 4 evaluates the classification performance in
+default hyperparameters for DS1 and DS2. Fig. 6 shows                         a fine-grained, eight-class scenario, where each unique
+the classification accuracy in the test set for the three ML                  event-modality combination (e.g., rlxu, rlxm) is treated
+classifiers that achieve the highest accuracy across both                     as a distinct class. Table III presents the performance
+DS1 and DS2: XGBoost, HGB, and GB. Among them,                                of all evaluated classifiers for this setup. Among the
+XGBoost demonstrates superior performance, attaining                          tested models, XGBoost achieved the highest overall ac-
+an accuracy of 97.12% for unmodulated and 98.47% for                          curacy, followed closely by HGB, and GB. In addition to
+modulated signals. A deeper insight into the performance
+of XGBoost is offered by the confusion matrices in
+Fig. 7. In both cases, the classifiers exhibit strong class
+separability with minimal confusion. Few misclassifica-
+tions were observed primarily between the sbd and 80vb
+events. Nonetheless, the impact of these errors on overall
+detection reliability is negligible.
+                                                                                                                              10
+
+                                                                              TABLE II
+PERFORMANCE BENCHMARKING OF SUPERVISED ML CLASSIFIERS FOR SCENARIO 3 (MIXED SIGNAL MODALITIES CLASSIFICATION).
+
+Classifier                    Accuracy  Precision  Recall          F1-score  Training Time (s)  Inference Time (s)
+Histogram Gradient Boosting    0.9809    0.9809    0.9809           0.9809           18.38              0.057
+XGBoost                        0.9793    0.9794    0.9793           0.9793            7.87              0.024
+Gradient Boosting              0.9641    0.9640    0.9641           0.9640                              0.042
+Random Forest                  0.9616    0.9617    0.9616           0.9615         1555.49              0.066
+Extra Trees Classifier         0.9498    0.9509    0.9498           0.9490           40.46              0.109
+SVM Classifier                 0.9479    0.9477    0.9479           0.9476            7.29              17.99
+Decision Tree                  0.9028    0.9030    0.9028           0.9028           55.99              0.005
+K-Nearest Neighbors            0.8365    0.8417    0.8365           0.8298           18.89              0.655
+Logistic Regression            0.8193    0.8194    0.8193           0.8193           0.023              0.021
+Linear Discriminant Analysis   0.7814    0.7813    0.7814           0.7810           40.51              0.012
+                                                                                      1.70
+
+                                                                             TABLE III
+PERFORMANCE BENCHMARKING OF SUPERVISED ML CLASSIFIERS FOR SCENARIO 4 (JOINT SIGNAL MODALITIES CLASSIFICATION).
+
+Classifier Name               Accuracy  Precision  Recall          F1-score  Training Time (s)  Inference Time (s)
+XGBoost                        0.9804    0.9804    0.9804           0.9804         13.0668              0.0401
+Histogram Gradient Boosting    0.9793    0.9794    0.9793           0.9793         21.8151              0.0631
+Gradient Boosting              0.9688    0.9687    0.9688           0.9687        2394.0043             0.0598
+Random Forest                  0.9658    0.9661    0.9658           0.9658         39.8580              0.0678
+SVM Classifier                 0.9483    0.9483    0.9483           0.9481         24.5029             17.2565
+Extra Trees Classifier         0.9467    0.9488    0.9467           0.9462          7.4505              0.1216
+Decision Tree                  0.9057    0.9057    0.9057           0.9056         17.8165              0.0053
+Linear Discriminant Analysis   0.8807    0.8817    0.8807           0.8794          1.0988              0.0115
+Logistic Regression            0.8806    0.8807    0.8806           0.8805         56.5408              0.0043
+K-Nearest Neighbors            0.8365    0.8458    0.8365           0.8300          0.0272              0.8149
+
+                        rlx 98.8% 0.0% 1.2% 0.0%                     rlxu 96.9% 0.1% 2.6% 0.3% 0.0% 0.0% 0.0% 0.0%
+                                                                    eavu 0.6% 98.9% 0.6% 0.0% 0.0% 0.0% 0.0% 0.0%
+                       eav 0.7% 99.0% 0.3% 0.1%                     sbdu 3.6% 0.3% 95.0% 1.1% 0.0% 0.0% 0.0% 0.0%
+                                                                   80vbu 0.0% 0.0% 0.7% 99.3% 0.0% 0.0% 0.0% 0.0%
+                       sbd 2.2% 0.6% 95.6% 1.6%                      rlxm 0.0% 0.0% 0.0% 0.0% 100.0% 0.0% 0.0% 0.0%
+                                                                    eavm 0.0% 0.0% 0.0% 0.0% 0.4% 99.4% 0.0% 0.1%
+                      80vb 0.1% 0.1% 1.4% 98.4%                     sbdm 0.0% 0.0% 0.0% 0.0% 0.3% 1.0% 96.4% 2.4%
+                                                                   80vbm 0.0% 0.0% 0.0% 0.0% 0.0% 0.0% 1.7% 98.3%
+                       rlx Preeadv ictedsbdlabe8l0vb
+                                                                        rlxu eavu Psrbedudi8c0vtbuedrlxmlabeaevml sbdm 80vbm
+Fig. 8. Confusion matrix of the Histogram Gradient Boosting (HGB)
+classifier for mixed signal modalities classification scenario.
+True label
+
+                                          True label
+
+delivering the best classification performance, XGBoost            Fig. 9. Confusion matrix for scenario 4 showing classification perfor-
+maintained a relatively modest computational footprint,            mance using the eXtreme Gradient Boosting (XGBoost) classifier.
+requiring 13.07 s for training and only 0.04 s for
+inference. The confusion matrix of XGBoost is shown                unmodulated and modulated signals (100% accuracy),
+in Fig. 9. XGBoost achieves high discrimination for                i.e., misclassification is only observed within the same
+nearly all classes. The modulated signature classes have           modality. These results confirm that it is possible for
+near-perfect accuracy above 98.9%, with 100% accuracy              a classifier to accurately classify both modality and
+for the rlxm class. The worst-case misclassification in            physical events simultaneously. The findings reinforce
+the unmodulated signals is observed for the sbdu class,            the conclusion that modulation does not significantly
+where 3.6% of samples are incorrectly labeled as rlxu.             affect the performance of ML-based classifiers.
+In the modulated signal, the highest confusion occurs
+between sbdm and 80vbm, with a misclassification rate of                                VII. CONCLUSIONS
+2.4%. These errors indicate strong class separability even            This paper investigates the impact of optical signal
+when both signal modality and event type are jointly               modulation on ML classification of harmful events by us-
+classified. Interestingly, there is no confusion between
+                                                                          11
+
+ing SOP signatures. While prior studies have largely fo-                  [12] EXFO Inc, "Tunable DFB Laser Sources ­ Application Note
+                                                                                012," available here.
+cused on unmodulated light sources, our work addresses
+                                                                          [13] B. Szafraniec, T. S. Marshall, and B. Nebendahl, "Performance
+the critical gap of evaluating SOP-based monitoring                             monitoring and measurement techniques for coherent optical
+                                                                                systems," Journal of Lightwave Technology, vol. 31, no. 4, pp.
+under practical, high-speed modulated conditions. Using                         648­663, 2013.
+
+a real-world experimental setup on a metro network,                       [14] L. Moeller and B. Bakhshi, "Polarization modulation of supervi-
+                                                                                sory signals for reducing interference with data signals," Mar. 12
+we collected polarization signatures from modulated and                         2019, uS Patent 10,230,472.
+
+unmodulated signals subjected to identical physical dis-                  [15] HEAnet, "Ireland's National Education and Research Network."
+                                                                                [Online]. Available: https://www.heanet.ie/about
+turbances. Statistical analysis revealed that modulation
+                                                                          [16] K. Abdelli, M. Lonardi, J. Gripp, S. Olsson, F. Boitier, and
+stabilizes the SOP distribution by suppressing fluctua-                         P. Layec, "Breaking boundaries: harnessing unrelated image data
+                                                                                for robust risky event classification with scarce state of polariza-
+tions. A suite of classifiers was assessed on four datasets                     tion data," in European Conference on Optical Communications
+                                                                                (ECOC), vol. 2023, 2023, pp. 924­927.
+with separated, mixed, and joint modalities. The assessed
+                                                                          [17] K. Abdelli, M. Lonardi, F. Boitier, D. Correa, J. Gripp, S. Olsson,
+ML algorithms consistently achieved high classification                         and P. Layec, "Vision transformers for anomaly classification
+                                                                                and localization in optical networks using SOP spectrograms,"
+accuracy in benign and malicious events, confirming                             Journal of Lightwave Technology, vol. 43, no. 4, pp. 1902­1914,
+                                                                                2024.
+that the spectral features extracted from SOP dynam-
+                                                                          [18] L. Sadighi, S. Karlsson, C. Natalino, L. Wosinska, M. Ruffini,
+ics remain distinguishable by ML algorithms regard-                             and M. Furdek, "Detection and classification of eavesdropping
+                                                                                and mechanical vibrations in fiber optical networks by analyzing
+less of modulation effects. While real-world deployment                         polarization signatures over a noisy environment," in European
+                                                                                Conference on Optical Communication (ECOC), 2024, pp. 527­
+challenges like large-scale polarization data acquisition,                      530.
+
+modulation diversity, and ML control-plane integration                    [19] L. Sadighi, S. Karlsson, L. Wosinska, and M. Furdek, "Machine
+                                                                                learning analysis of polarization signatures for distinguishing
+remain, our results show that accurate anomaly classifi-                        harmful from non-harmful fiber events," in International Con-
+                                                                                ference on Transparent Optical Networks (ICTON), 2024.
+cation is feasible under realistic traffic conditions.
+                                                                          [20] W. Qin, Q. Zhang, W. Hou, X. Zhang, and X. Gong, "Convo-
+                          REFERENCES                                            lutional neural networks for fiber-bending eavesdropping attacks
+                                                                                detection in coherent optical communication systems," in Interna-
+ [1] D. Dahan and U. Mahlab, "Security threats and protection                   tional Conference on Ubiquitous Communication (Ucom), 2024,
+      procedures for optical networks," IET Optoelectronics, vol. 11,           pp. 342­345.
+      no. 5, pp. 186­200, 2017.
+                                                                          [21] K. Abdelli, M. Lonardi, J. Gripp, S. Olsson, F. Boitier, and
+ [2] W. Lee, S. I. Myong, J. C. Lee, and S. Lee, "Identification method         P. Layec, "Unsupervised anomaly detection and localization with
+      of non-reflective faults based on index distribution of optical           generative adversarial networks," in ECOC 2024; 50th European
+      fibers," Optics express, vol. 22, no. 1, pp. 325­337, 2014.               Conference on Optical Communication, 2024, pp. 998­1001.
+
+ [3] K. Abdelli, H. Grießer, C. Tropschug, and S. Pachnicke, "Optical     [22] X. Chen, B. Li, R. Proietti, Z. Zhu, and S. J. B. Yoo, "Self-taught
+      fiber fault detection and localization in a noisy OTDR trace based        anomaly detection with hybrid unsupervised/supervised machine
+      on denoising convolutional autoencoder and bidirectional long             learning in optical networks," Journal of Lightwave Technology,
+      short-term memory," IEEE Journal of Lightwave Technology,                 vol. 37, no. 7, pp. 1742­1749, 2019.
+      vol. 40, no. 8, pp. 2254­2264, 2021.
+                                                                          [23] H. Song, R. Lin, L. Wosinska, P. Monti, M. Zhang, Y. Liang,
+ [4] K. Abdelli, J. Y. Cho, F. Azendorf, H. Griesser, C. Tropschug,             Y. Li, and J. Zhang, "Cluster-based unsupervised method for
+      and S. Pachnicke, "Machine-learning-based anomaly detection in            eavesdropping detection and localization in WDM systems,"
+      optical fiber monitoring," Journal of optical communications and          Journal of Optical Communications and Networking, vol. 16,
+      networking, vol. 14, no. 5, pp. 365­375, 2022.                            no. 10, pp. F52­F61, 2024.
+
+ [5] B. Steinar, "Locating disturbances in optical fibres," U.S. Patent   [24] L. Sadighi, S. Karlsson, C. Natalino, and M. Furdek, "Ml-
+      WO2 022 185 075A1, Sep 9, 2022.                                           based state of polarization analysis to detect emerging threats to
+                                                                                optical fiber security," IEEE Transactions on Network and Service
+ [6] Y. Aono, E. Ip, and P. Ji, "More than communications: en-                  Management, vol. 23, pp. 432­442, 2026.
+      vironment monitoring using existing optical fiber network in-
+      frastructure," in Optical Fiber Communications Conference and       [25] A. Tomasov, P. Dejdar, P. Munster, T. Horvath, P. Barcik, and
+      Exhibition (OFC), 2020, p. W3G.1.                                         F. Da Ros, "Enhancing fiber security using a simple state of
+                                                                                polarization analyzer and machine learning," Optics & Laser
+ [7] S. Pellegrini, L. Minelli, L. Andrenacci, G. Rizzelli, D. Pi-              Technology, vol. 167, p. 109668, 2023.
+      lori, G. Bosco, L. D. Chiesa, C. Crognale, S. Piciaccia, and
+      R. Gaudino, "Overview on the state of polarization sensing:         [26] L. Sadighi, S. Karlsson, C. Natalino, L. Wosinska, M. Ruffini, and
+      application scenarios and anomaly detection algorithms," J. Opt.          M. Furdek, "Deep learning for detection of harmful events in real-
+      Commun. Netw., vol. 17, no. 2, pp. A196­A209, Feb 2025.                   world, noisy optical fiber deployments," Journal of Lightwave
+                                                                                Technology, pp. 1­9, 2025.
+ [8] L. Sadighi, S. Karlsson, C. Natalino, and M. Furdek, "Machine
+      learning-based polarization signature analysis for detection and    [27] C. J. Carver and X. Zhou, "Polarization sensing of network
+      categorization of eavesdropping and harmful events," in Optical           health and seismic activity over a live terrestrial fiber-optic cable,"
+      Fiber Communications Conference and Exhibition (OFC), 2024,               Communications Engineering, vol. 3, no. 1, p. 91, 2024.
+      p. M1H.1.
+                                                                          [28] L. Sadighi, C. Natalino, S. Karlsson, L. Wosinska, M. Ruffini,
+ [9] L. Andrenacci, D. Pilori, S. Pellegrini, L. Minelli, G. Bosco,             and M. Furdek, "AI/ML-based state-of-polarization monitoring
+      C. Crognale, S. Piciaccia, and R. Gaudino, "Comparison between            in optical networks: Concepts and challenges," in Optical Fiber
+      phase and polarization sensing using coherent transceivers over           Communication Conference (OFC) 2025, 2025, p. M3F.6.
+      deployed metro fibers," in Optical Fiber Communication Confer-
+      ence. Optica Publishing Group, 2024, pp. M2K­2.                     [29] M. Mazur, D. Wallberg, L. Dallachiesa, E. Bo¨rjeson, R. Ryf,
+                                                                                M. Bergroth, B. Josefsson, N. K. Fontaine, H. Chen, D. T.
+[10] S. Karlsson, M. Andersson, R. Lin, L. Wosinska, and P. Monti,              Neilson, J. Schro¨der, P. Larsson-Edefors, and M. Karlsson, "Real-
+      "Detection of abnormal activities on a SM or MM fiber," in Op-
+      tical Fiber Communication Conference (OFC), 2023, p. M3Z.6.
+
+[11] D. Rafique, T. Szyrkowiec, H. Grießer, A. Autenrieth, and J.-
+      P. Elbers, "Cognitive assurance architecture for optical network
+      fault management," Journal of Lightwave Technology, vol. 36,
+      no. 7, pp. 1443­1450, 2018.
+                                                                                                                                                                                                        12
+
+      time monitoring of cable break in a live network using a coherent
+      transceiver prototype," in 2024 Optical Fiber Communications
+      Conference and Exhibition (OFC), 2024, pp. 1­3.
+[30] A. Rode, M. Farsi, V. Lauinger, M. Karlsson, E. Agrell,
+      L. Schmalen, and C. Ha¨ger, "Machine learning opportunities
+      for integrated polarization sensing and communication in optical
+      fibers," Optical Fiber Technology, vol. 90, p. 104047, 2025.
+[31] C. B. Czegledi, M. Karlsson, E. Agrell, and P. Johannisson,
+      "Polarization drift channel model for coherent fibre-optic sys-
+      tems," Scientific Reports, vol. 6, no. 1, p. 21217, 2016, DOI:
+      10.1038/srep21217.
+[32] D. Waddy, P. Lu, L. Chen, and X. Bao, "Fast state of polarization
+      changes in aerial fiber under different climatic conditions," IEEE
+      Photonics Technology Letters, vol. 13, no. 9, pp. 1035­1037,
+      2001.
+[33] J. Wuttke, P. Krummrich, and J. Rosch, "Polarization oscillations
+      in aerial fiber caused by wind and power-line current," IEEE
+      Photonics Technology Letters, vol. 15, no. 6, pp. 882­884, 2003.
+[34] P. M. Krummrich, D. Ronnenberg, W. Schairer, D. Wienold, F. Je-
+      nau, and M. Herrmann, "Demanding response time requirements
+      on coherent receivers due to fast polarization rotations caused
+      by lightning events," Opt. Express, vol. 24, no. 11, pp. 12 442­
+      12 457, May 2016.
+[35] S. J. Savory, "Digital filters for coherent optical receivers," Opt.
+      Express, vol. 16, no. 2, pp. 804­817, Jan 2008.
+[36] K. Kikuchi, "Performance analyses of polarization demultiplex-
+      ing based on constant-modulus algorithm in digital coherent
+      optical receivers," Opt. Express, vol. 19, no. 10, pp. 9868­9880,
+      May 2011.
+[37] CONNECT Centre for Future Networks and Communications,
+      "Open Ireland Testbed," available here.
+[38] P. Podder, T. Z. Khan, M. H. Khan, and M. M. Rahman,
+      "Comparative performance analysis of hamming, hanning and
+      blackman window," International Journal of Computer Applica-
+      tions, vol. 96, pp. 1­7, 2014.
+[39] S. Karlsson, R. Lin, L. Wosinska, and P. Monti, "Eavesdropping
+      G.652 vs. G.657 fibres: a performance comparison," in Inter-
+      national Conference on Optical Network Design and Modeling
+      (ONDM), 2022, p. Tu1.4.
+
