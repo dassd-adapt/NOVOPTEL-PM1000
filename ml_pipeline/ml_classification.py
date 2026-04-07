@@ -6,8 +6,6 @@ supervised models, cross-validation (stratified 5-fold + LOSO), and model saving
 """
 
 import os
-import glob
-import pickle
 import warnings
 
 import numpy as np
@@ -27,110 +25,8 @@ from sklearn.metrics import (
     confusion_matrix,
 )
 
-from feature_extraction import (
-    parse_filename,
-    load_csv,
-    compute_source_baseline,
-    extract_features,
-)
-
 SOURCES = ["SP-AGIL", "SP-PURE", "DPQAM16-200G", "DPQPSK-200G", "10GE"]
 EVENTS = ["NE", "FS", "VB", "MB", "TAP"]
-
-
-# ---------------------------------------------------------------------------
-# 1. Build feature matrix
-# ---------------------------------------------------------------------------
-
-def _scan_csv_files(dataset_dir):
-    """Return list of (filepath, meta_dict) for all valid PM1000 CSV files,
-    scanning dataset_dir and its parent directory, deduplicating by basename."""
-    found = {}
-    search_dirs = [dataset_dir, os.path.dirname(dataset_dir)]
-    for d in search_dirs:
-        for fp in glob.glob(os.path.join(d, "pm1000_sop_*.csv")):
-            bn = os.path.basename(fp)
-            meta = parse_filename(bn)
-            if meta is not None:
-                found[bn] = (fp, meta)
-    return list(found.values())
-
-
-def build_feature_matrix(dataset_dir, dop_thresh=0.2, t_start=0, t_end=60):
-    """Scan dataset_dir, compute per-source baselines, extract features for
-    all files.
-
-    Returns
-    -------
-    X : pd.DataFrame  — feature matrix (rows = files, cols = features)
-    y_event : pd.Series — event labels
-    y_source : pd.Series — source labels
-    feature_names : list of str
-    """
-    all_files = _scan_csv_files(dataset_dir)
-
-    # Group NE files by source
-    ne_files_by_source = {s: [] for s in SOURCES}
-    for fp, meta in all_files:
-        if meta["event"].upper() == "NE":
-            src = meta["source"].upper()
-            if src in ne_files_by_source:
-                ne_files_by_source[src].append(fp)
-
-    # Compute per-source baselines and representative fs
-    baselines = {}
-    source_fs = {}
-    for src in SOURCES:
-        ne_fps = ne_files_by_source[src]
-        if ne_fps:
-            sref, floor_deg, mad_val = compute_source_baseline(
-                ne_fps, dop_thresh=dop_thresh, t_start=t_start, t_end=t_end
-            )
-            # Estimate fs from first NE file
-            _, fs_est = load_csv(ne_fps[0], t_start=t_start, t_end=t_end)
-        else:
-            sref = np.array([1.0, 0.0, 0.0])
-            floor_deg = 0.0
-            mad_val = 1.0
-            fs_est = 1441.0
-            warnings.warn(f"No NE files found for source {src}, using defaults.")
-        baselines[src] = (sref, floor_deg, mad_val)
-        source_fs[src] = fs_est
-
-    # Extract features for every file
-    rows = []
-    labels_event = []
-    labels_source = []
-
-    for fp, meta in all_files:
-        src = meta["source"].upper()
-        event = meta["event"].upper()
-        if src not in baselines:
-            continue
-        sref, floor_deg, mad_val = baselines[src]
-        fs = source_fs[src]
-        try:
-            feats = extract_features(
-                fp, sref, floor_deg, mad_val, fs,
-                dop_thresh=dop_thresh, t_start=t_start, t_end=t_end,
-            )
-        except Exception as e:
-            warnings.warn(f"Failed to extract features from {fp}: {e}")
-            continue
-        feats["_filepath"] = fp
-        rows.append(feats)
-        labels_event.append(event)
-        labels_source.append(src)
-
-    df_all = pd.DataFrame(rows)
-    df_all = df_all.drop(columns=["_filepath"], errors="ignore")
-
-    feature_names = [c for c in df_all.columns]
-    X = df_all[feature_names]
-    y_event = pd.Series(labels_event, name="event")
-    y_source = pd.Series(labels_source, name="source")
-
-    return X, y_event, y_source, feature_names
 
 
 # ---------------------------------------------------------------------------

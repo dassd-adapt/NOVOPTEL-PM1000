@@ -421,20 +421,25 @@ def plot_dop_vs_time_overlay(dataset_dir, output_dir, t_start=0, t_end=60,
                              dop_thresh=0.2):
     """Load one representative file per (source, event) combo and overlay DOP(t)."""
     import glob as _glob
-    from feature_extraction import parse_filename, load_csv, compute_dop
 
     _ensure_dir(output_dir)
 
-    # Gather files
+    # Gather files — parse source/event from filename via string splitting.
+    # Format: pm1000_sop_2kHz_1min_{SOURCE}_{EVENT}_1550_{DATE}_{REP}.csv
+    event_tags = {"NE", "FS", "VB", "MB", "TAP"}
     all_files = {}
-    search_dirs = [dataset_dir, os.path.dirname(dataset_dir)]
-    for d in search_dirs:
-        for fp in _glob.glob(os.path.join(d, "pm1000_sop_*.csv")):
-            bn = os.path.basename(fp)
-            meta = parse_filename(bn)
-            if meta:
-                key = (meta["source"].upper(), meta["event"].upper())
-                all_files.setdefault(key, fp)  # keep first occurrence
+    for fp in sorted(_glob.glob(os.path.join(dataset_dir, "pm1000_sop_*.csv"))):
+        stem = os.path.splitext(os.path.basename(fp))[0]
+        parts = stem.split("_")
+        # prefix: pm1000, sop, 2kHz, 1min  (4 tokens); suffix: 1550, DATE, REP (3 tokens)
+        middle = parts[4:-3]
+        event_idx = next((i for i, t in enumerate(middle) if t in event_tags), None)
+        if event_idx is None:
+            continue
+        source = "_".join(middle[:event_idx]).upper()
+        event = middle[event_idx].upper()
+        key = (source, event)
+        all_files.setdefault(key, fp)  # keep first occurrence
 
     sources = ["SP-AGIL", "SP-PURE", "DPQAM16-200G", "DPQPSK-200G", "10GE"]
     events = ["NE", "FS", "VB", "MB", "TAP"]
@@ -446,9 +451,13 @@ def plot_dop_vs_time_overlay(dataset_dir, output_dir, t_start=0, t_end=60,
             if fp is None:
                 continue
             try:
-                df, _fs = load_csv(fp, t_start=t_start, t_end=t_end)
-                dop = compute_dop(df)
-                ax.plot(df["Time_s"].values, dop,
+                df = pd.read_csv(fp)
+                if t_end is not None:
+                    df = df[df["Time_s"] <= t_end]
+                if t_start is not None:
+                    df = df[df["Time_s"] >= t_start]
+                dop = np.sqrt(df["S1"] ** 2 + df["S2"] ** 2 + df["S3"] ** 2)
+                ax.plot(df["Time_s"].values, dop.values,
                         color=EVENT_COLOURS[ev], alpha=0.7,
                         label=ev, linewidth=0.8)
             except Exception:
