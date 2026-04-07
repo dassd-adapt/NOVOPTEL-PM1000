@@ -7,6 +7,17 @@ Each ~100-second CSV file is segmented into overlapping windows, and a set of
 25 features is computed per window.  The result is written to
 ``analysis/features_windowed.csv``.
 
+PM1000 normalisation note
+-------------------------
+The PM1000 was configured in **Standard Normalisation** mode for all recordings:
+S1, S2, S3 in every CSV are already normalised to the unit Poincaré sphere
+(‖[S1, S2, S3]‖ ≈ 1).  S0 ≈ 1 throughout and must NOT be used to re-normalise
+S1/S2/S3 — doing so would divide ~1 by ~1 and is conceptually incorrect.
+
+This applies equally to SP sources (10GE, SP-AGIL, SP-PURE) and DP sources
+(DPQAM16-200G, DPQPSK-200G).  A single defensive unit-normalisation step is
+applied after loading to absorb sub-LSB floating-point noise.
+
 Usage
 -----
 From the repository root::
@@ -47,13 +58,6 @@ BAND_MID = (20.0, 100.0)
 BAND_HIGH = (100.0, 500.0)
 
 # ---------------------------------------------------------------------------
-# Source classification
-# ---------------------------------------------------------------------------
-
-DP_SOURCES = {"DPQAM16-200G", "DPQPSK-200G"}
-SP_SOURCES = {"10GE", "SP-AGIL", "SP-PURE"}
-
-# ---------------------------------------------------------------------------
 # Output paths (resolved relative to this file so the script works from
 # anywhere)
 # ---------------------------------------------------------------------------
@@ -66,7 +70,6 @@ OUTPUT_CSV = REPO_ROOT / "analysis" / "features_windowed.csv"
 # Helper functions
 # ---------------------------------------------------------------------------
 
-
 def _geodesic_angle(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     """Return the geodesic angle (degrees) between unit-vector rows in *a* and *b*.
 
@@ -77,18 +80,22 @@ def _geodesic_angle(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     dot = np.clip(dot, -1.0, 1.0)
     return np.degrees(np.arccos(dot))
 
+def _unit_normalise(s123: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Defensively normalise (N, 3) Stokes rows to unit vectors.
 
-def _safe_unit(s123: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Normalise (N, 3) Stokes rows to unit vectors.
+    The PM1000 stores S1/S2/S3 in Standard Normalisation mode, so
+    ‖[S1, S2, S3]‖ ≈ 1 already.  This step absorbs sub-LSB floating-point
+    noise only; it does NOT divide by S0.
 
-    Returns ``(unit_vecs, dop)`` where invalid rows (DOP == 0) are set to NaN.
+    Returns ``(unit_vecs, dop)`` where rows with DOP == 0 are set to NaN.
+    DOP here is ‖[S1, S2, S3]‖ which equals the true optical DOP because
+    the vectors are already S0-normalised by the instrument.
     """
     dop = np.linalg.norm(s123, axis=1)
     with np.errstate(invalid="ignore", divide="ignore"):
         unit = s123 / dop[:, None]
     unit[dop == 0] = np.nan
     return unit, dop
-
 
 def _band_power(freqs: np.ndarray, psd: np.ndarray, f_lo: float, f_hi: float) -> float:
     """Integrate *psd* between *f_lo* and *f_hi* Hz using the trapezoid rule."""
@@ -102,18 +109,16 @@ def _band_power(freqs: np.ndarray, psd: np.ndarray, f_lo: float, f_hi: float) ->
         _trapz = np.trapz  # type: ignore[attr-defined]
     return float(_trapz(psd[mask], freqs[mask]))
 
-
 # ---------------------------------------------------------------------------
 # File discovery and parsing
 # ---------------------------------------------------------------------------
-
 
 def discover_files(dataset_dir: Path) -> list[dict]:
     """Return a list of file-info dicts for all valid CSV files in *dataset_dir*.
 
     Each dict has keys: ``path``, ``source``, ``event``, ``date``, ``rep``.
     Files smaller than :data:`MIN_FILE_SIZE_BYTES` are skipped with a warning.
-    """
+    """  
     pattern = "pm1000_sop_2kHz_1min_*_*_1550_*_*.csv"
     records = []
 
@@ -128,15 +133,11 @@ def discover_files(dataset_dir: Path) -> list[dict]:
 
         # Parse filename tokens
         # Format: pm1000_sop_2kHz_1min_{SOURCE}_{EVENT}_1550_{DATE}_{REP}.csv
-        stem = csv_path.stem  # e.g. pm1000_sop_2kHz_1min_SP-AGIL_TAP_1550_310326_3
+        stem = csv_path.stem
         parts = stem.split("_")
         # prefix tokens: pm1000, sop, 2kHz, 1min  → 4 tokens
-        # then SOURCE (may contain '-'), EVENT, 1550, DATE, REP
-        # Because SOURCE can contain '-' we cannot simply split on '_'.
-        # Reliable approach: drop the 4-token prefix and strip the known suffix.
-        prefix_len = 4  # pm1000, sop, 2kHz, 1min
-        suffix_tokens = parts[-3:]   # DATE, REP — but 1550 is also fixed
-        # suffix: ['1550', DATE, REP]
+        prefix_len = 4
+        suffix_tokens = parts[-3:]   # ['1550', DATE, REP]
         if len(suffix_tokens) != 3 or suffix_tokens[0] != "1550":
             print(f"  [SKIP] Cannot parse filename: {csv_path.name}")
             continue
@@ -145,7 +146,7 @@ def discover_files(dataset_dir: Path) -> list[dict]:
         rep_str = suffix_tokens[2]
 
         # Middle tokens are SOURCE and EVENT — split on first recognised event tag
-        middle_tokens = parts[prefix_len:-3]   # everything between prefix & suffix
+        middle_tokens = parts[prefix_len:-3]
         event_tags = {"NE", "FS", "VB", "MB", "TAP"}
         event_idx = None
         for i, tok in enumerate(middle_tokens):
@@ -172,19 +173,22 @@ def discover_files(dataset_dir: Path) -> list[dict]:
 
     return records
 
-
 # ---------------------------------------------------------------------------
 # Per-file processing
 # ---------------------------------------------------------------------------
 
-
 def load_and_normalise(file_info: dict) -> pd.DataFrame | None:
-    """Load a CSV and return a DataFrame with normalised S1, S2, S3 columns.
+    """Load a CSV and return a DataFrame with defensively unit-normalised S1, S2, S3.
 
-    For SP sources S1/S2/S3 are divided by S0 (S0 == 0 rows become NaN).
-    For DP sources the values are used as-is (already normalised).
+    The PM1000 records in Standard Normalisation mode: S1, S2, S3 are already
+    on the unit Poincaré sphere for ALL source types (SP and DP alike).
+    S0 ≈ 1 throughout and is NOT used to re-normalise S1/S2/S3.
+
+    A single defensive pass divides each row by ‖[S1, S2, S3]‖ to absorb
+    sub-LSB floating-point noise; rows with zero norm are set to NaN.
+
     Returns ``None`` on read errors.
-    """
+    """  
     try:
         df = pd.read_csv(file_info["path"])
     except Exception as exc:
@@ -200,24 +204,23 @@ def load_and_normalise(file_info: dict) -> pd.DataFrame | None:
     df.sort_values("Time_s", inplace=True)
     df.reset_index(drop=True, inplace=True)
 
-    source = file_info["source"]
+    # Defensive unit normalisation — same for all sources.
+    # S0 is intentionally ignored here; the instrument already normalised
+    # S1/S2/S3 to the unit sphere in Standard Normalisation mode.
+    s123 = df[["S1", "S2", "S3"]].values.astype(float)
+    norms = np.linalg.norm(s123, axis=1, keepdims=True)
+    norms = np.where(norms < 1e-9, 1.0, norms)   # avoid divide-by-zero
+    s123_unit = s123 / norms
 
-    if source in SP_SOURCES:
-        # Normalise by S0; set rows with S0 == 0 to NaN
-        with np.errstate(invalid="ignore", divide="ignore"):
-            s0 = df["S0"].values.astype(float)
-            for col in ("S1", "S2", "S3"):
-                df[col] = np.where(s0 != 0, df[col].values / s0, np.nan)
-    # For DP sources, values are already normalised — no action needed.
+    df["S1"] = s123_unit[:, 0]
+    df["S2"] = s123_unit[:, 1]
+    df["S3"] = s123_unit[:, 2]
 
     return df
-
 
 # ---------------------------------------------------------------------------
 # Feature extraction for a single window
 # ---------------------------------------------------------------------------
-
-
 def extract_window_features(
     win: pd.DataFrame,
     s_ref: np.ndarray,
@@ -239,8 +242,8 @@ def extract_window_features(
     dt = dt[dt > 0]
     fs = 1.0 / np.median(dt) if len(dt) > 0 else 1.0
 
-    # Unit vectors and DOP
-    unit, dop = _safe_unit(s123)
+    # Unit vectors and DOP (‖[S1,S2,S3]‖ = true DOP because already S0-normalised)
+    unit, dop = _unit_normalise(s123)
 
     # DOP features -------------------------------------------------------
     dop_mean = float(np.nanmean(dop))
@@ -258,7 +261,6 @@ def extract_window_features(
     if n >= 2:
         a = unit_gated[:-1]
         b = unit_gated[1:]
-        # Only compute where both rows are valid
         valid = ~(np.any(np.isnan(a), axis=1) | np.any(np.isnan(b), axis=1))
         if valid.sum() > 0:
             angles = _geodesic_angle(a[valid], b[valid])
@@ -348,17 +350,14 @@ def extract_window_features(
     # Replace any remaining NaN / inf with 0
     return {k: (0.0 if (not math.isfinite(v)) else v) for k, v in row.items()}
 
-
 # ---------------------------------------------------------------------------
 # Per-file windowing
 # ---------------------------------------------------------------------------
-
-
 def process_file(file_info: dict) -> list[dict]:
     """Segment one file into windows and extract features from each.
 
     Returns a list of row dicts ready to be appended to the output DataFrame.
-    """
+    """  
     df = load_and_normalise(file_info)
     if df is None:
         return []
@@ -373,7 +372,7 @@ def process_file(file_info: dict) -> list[dict]:
 
     # Compute mean reference SOP from the **entire file** (DOP-gated)
     s123_all = df[["S1", "S2", "S3"]].values.astype(float)
-    unit_all, dop_all = _safe_unit(s123_all)
+    unit_all, dop_all = _unit_normalise(s123_all)
     gate_all = dop_all > DOP_GATE
     unit_all[~gate_all] = np.nan
 
@@ -390,7 +389,6 @@ def process_file(file_info: dict) -> list[dict]:
 
     rows = []
     window_idx = 0
-    skipped = 0
     win_t_start = t_start_file
 
     while win_t_start + WINDOW_S <= t_end_file + 1e-9:
@@ -399,7 +397,6 @@ def process_file(file_info: dict) -> list[dict]:
         n_pts = mask.sum()
 
         if n_pts < MIN_SAMPLES:
-            skipped += 1
             win_t_start += step_s
             window_idx += 1
             continue
@@ -424,14 +421,11 @@ def process_file(file_info: dict) -> list[dict]:
 
     return rows
 
-
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
-
-
 def main() -> None:
-    """Run the full feature extraction pipeline."""
+    """Run the full feature extraction pipeline."""  
     print("=" * 60)
     print("NOVOPTEL PM1000 — Windowed Feature Extraction")
     print("=" * 60)
@@ -454,7 +448,7 @@ def main() -> None:
 
     # --- Process files --------------------------------------------------
     all_rows: list[dict] = []
-    summary: dict[str, dict] = {}  # event → {files, windows, skipped}
+    summary: dict[str, dict] = {}  # event → {files, windows}
 
     for fi in file_list:
         event = fi["event"]
