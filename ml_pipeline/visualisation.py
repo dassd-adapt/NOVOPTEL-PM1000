@@ -414,7 +414,119 @@ def plot_per_source_accuracy(results, output_dir):
 
 
 # ---------------------------------------------------------------------------
-# 13. DOP vs time overlay (one subplot per source)
+# 13. Learning curves (GroupKFold keyed on source — LOSO-style)
+# ---------------------------------------------------------------------------
+
+def plot_learning_curves(final_rf, final_svm, X_arr, y_event, y_source, output_dir):
+    """Plot learning curves for RF and SVM using GroupKFold keyed on source.
+
+    GroupKFold ensures train/test folds never share the same optical source,
+    giving an honest LOSO-style generalisation estimate as a function of
+    training size. The gap between train and CV accuracy is annotated to
+    diagnose overfitting.
+    """
+    from sklearn.model_selection import learning_curve, GroupKFold
+    from sklearn.metrics import f1_score
+
+    _ensure_dir(output_dir)
+
+    y_arr = y_event.values if hasattr(y_event, "values") else np.array(y_event)
+    groups = y_source.values if hasattr(y_source, "values") else np.array(y_source)
+
+    n_samples = len(y_arr)
+    n_groups = len(np.unique(groups))
+    n_splits = min(5, n_groups)
+    cv = GroupKFold(n_splits=n_splits)
+
+    train_sizes_rel = np.linspace(0.1, 1.0, 15)
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+    models = [
+        (final_rf,  "Learning Curve — RF (LOSO-style, grouped by source)",  axes[0]),
+        (final_svm, "Learning Curve — SVM (LOSO-style, grouped by source)", axes[1]),
+    ]
+
+    for model, title, ax in models:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            train_sizes_abs, train_scores, cv_scores = learning_curve(
+                model, X_arr, y_arr,
+                train_sizes=train_sizes_rel,
+                cv=cv,
+                groups=groups,
+                scoring="accuracy",
+                n_jobs=-1,
+                error_score=0.0,
+            )
+
+        train_mean = train_scores.mean(axis=1)
+        train_std  = train_scores.std(axis=1)
+        cv_mean    = cv_scores.mean(axis=1)
+        cv_std     = cv_scores.std(axis=1)
+
+        # Training score — blue
+        ax.plot(train_sizes_abs, train_mean, "o-", color="#1f77b4",
+                linewidth=1.8, markersize=4, label="Training accuracy")
+        ax.fill_between(train_sizes_abs,
+                        train_mean - train_std, train_mean + train_std,
+                        alpha=0.15, color="#1f77b4")
+
+        # CV score — orange
+        ax.plot(train_sizes_abs, cv_mean, "s-", color="#ff7f0e",
+                linewidth=1.8, markersize=4, label="CV accuracy (GroupKFold by source)")
+        ax.fill_between(train_sizes_abs,
+                        cv_mean - cv_std, cv_mean + cv_std,
+                        alpha=0.15, color="#ff7f0e")
+
+        # Reference line
+        final_cv = cv_mean[-1]
+        ax.axhline(final_cv, color="#ff7f0e", linestyle="--",
+                   linewidth=1.0, alpha=0.6, label=f"Final CV acc = {final_cv:.2f}")
+
+        # Gap annotation
+        gap = train_mean[-1] - cv_mean[-1]
+        mid_y = (train_mean[-1] + cv_mean[-1]) / 2
+        ax.annotate(
+            f"Gap: {gap:.2f}",
+            xy=(train_sizes_abs[-1], mid_y),
+            xytext=(-60, 0), textcoords="offset points",
+            fontsize=9, color="dimgrey",
+            arrowprops=dict(arrowstyle="->", color="dimgrey"),
+        )
+
+        # Per-class F1 at full data
+        full_preds = model.predict(X_arr)
+        class_f1 = f1_score(y_arr, full_preds,
+                            labels=EVENTS_ORDER, average=None, zero_division=0)
+        table_text = "Full-data per-class F1:\n" + "  ".join(
+            f"{ev}:{f1:.2f}" for ev, f1 in zip(EVENTS_ORDER, class_f1)
+        )
+        ax.text(0.02, 0.04, table_text, transform=ax.transAxes,
+                fontsize=7.5, verticalalignment="bottom",
+                bbox=dict(boxstyle="round,pad=0.3", facecolor="wheat", alpha=0.5))
+
+        ax.set_title(title, fontsize=10)
+        ax.set_xlabel("Number of training samples")
+        ax.set_ylabel("Accuracy")
+        y_lo = max(0.0, min(cv_mean.min(), train_mean.min()) - 0.12)
+        ax.set_ylim([y_lo, 1.05])
+        ax.set_xlim([train_sizes_abs[0] * 0.9, train_sizes_abs[-1] * 1.05])
+        ax.legend(loc="lower right", fontsize=8)
+        ax.grid(True, linestyle=":", alpha=0.5)
+
+    plt.suptitle(
+        f"Learning curves — {n_samples} samples, grouped by source (LOSO-style CV)\n"
+        "Large gap → source-specific SOP bias; consider source-normalised features",
+        fontsize=9, color="grey"
+    )
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, "learning_curves.png"), dpi=120)
+    plt.close()
+
+
+# ---------------------------------------------------------------------------
+# 14. DOP vs time overlay (one subplot per source)
 # ---------------------------------------------------------------------------
 
 def plot_dop_vs_time_overlay(dataset_dir, output_dir, t_start=0, t_end=60,
@@ -509,6 +621,11 @@ def generate_all_plots(X, y_event, y_source, results, feature_names,
 
         plot_per_source_accuracy(results, output_dir)
         print("  ✓ per_source_accuracy.png")
+
+        X_arr = X.values.astype(float)
+        plot_learning_curves(results["final_rf"], results["final_svm"],
+                             X_arr, y_event, y_source, output_dir)
+        print("  ✓ learning_curves.png")
 
         plot_dop_vs_time_overlay(dataset_dir, output_dir)
         print("  ✓ dop_vs_time_overlay.png")
