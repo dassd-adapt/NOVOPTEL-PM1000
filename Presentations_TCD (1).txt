@@ -1,0 +1,161 @@
+AI/ML-Based Monitoring of SOP Variations
+in Optical Networks
+
+Presenter: Leyla Sadighi1,2
+Supervisors: Marco Ruffini1, Marija Furdek2
+Collaborators: Carlos Natalino2, Stefan Karlsson3, Lena Wosinska2, Eoin
+Kenny4
+June 24, 2025
+
+1CONNECT Centre, Trinity College Dublin, Ireland
+2Chalmers University of Technology, Gothenburg, Sweden
+3Micropol Fiberoptic AB, Sweden
+4HEAnet ­ Ireland's National Education and Research Network
+Importance of Optical Networks and Emerging Threats
+
+       · Optical fiber networks carry over 95% of global internet
+          traffic. But this backbone is physically vulnerable:
+              · Eavesdropping via subtle bends or taps
+              · Service degradation from construction, mechanical stress or
+                  vibration
+
+       · Conventional monitoring tools like OTDR and DFOS are:
+              · Expensive and hardware-heavy
+              · Blind to short, subtle, or overlapping disturbances
+
+       · Research Question: How can we enable intelligent,
+          low-cost, and always-on fiber sensing technique?
+
+                                                                                                                                 1
+State of Polarization (SOP): From Optical Property to Sensing
+Engine
+
+       · Polarization in optical fibers
+              · SOP is changed by external disturbances.
+              · SOP variations as indicators and dual functionality role of
+                  fibers
+
+       · Our Solution:
+              · Turn SOP into a digital fingerprint for fiber sensing and
+                  develop AI/ML techniques to detect anomalies from the
+                  unique SOP signatures for each event.
+
+                                                                                                                                 2
+AI/ML-Based Analysis of SOP Variations
+
+       · Why ML-Driven SOP monitoring?
+              · Traditional thresholding fails to capture subtle, compound, or
+                  emerging events.
+              · ML enables scalable and automated anomaly detection, event
+                  classification, and feature extraction from dynamic SOP
+                  patterns.
+              · Can detect the previously unseen attack types.
+
+       · Proposed framework
+
+                                              ML analyzer
+
+Tx                 Rx    SOP                  Data processing
+                       Analysis                Normalization
+    Fiber sensors       blocks SOP
+
+                                  Signatures
+
+Anomaly detection
+
+                                              ML algorithms
+
+Attack detection &
+
+    categorization                                                              3
+Research Contributions: From Detection to Cognitive Monitor-
+ing
+
+· Data Collection:
+      · Multi-attack datasets across 3 cable types (bare, indoor,
+          FOCS) from lab and OpenIreland testbeds.
+
+· Supervised Learning Achievements:
+      · Detection and categorization of normal and harmful events.
+      · Achieved up to 99% accuracy for experimental and up to
+          90% accuracy for real-world noisy environments (OFC
+          2024-2025, ECOC 2024, ICTON 2024-2025).
+
+· Deep Learning Extension:
+      · Short-link (300 m) and long-link (21 km) event detection and
+          categorization over the OpenIreland testbed (JLT 2025).
+
+Installation Training Validation Testing
+
+Short-link 99.81  98.90  98.57
+
+Long-link  95.28  92.77  92.26
+
+                                                                      4
+Latest Advances: Real-World SOP Sensing Over HEAnet In-
+frastructure
+
+        · Main Problem: Generalization of ML models across spectral
+           bands and fiber links (ECOC 2025).
+
+        System setup 1 (O-band dark fiber)
+
+      PM fiber  Dark fiber SM G.652                   Optical    Classification accuracy (Acc) for the different
+                                                     analyzer                 training/testing scenarios.
+O-band          OpenIreland          Eavesdropping
+CW-DFB              21 km              via bending     1 2 3
+                                                      Sampling
+  Laser
+                                                            +
+                               Switch                     FFT    Scenario    Training    Testing   Acc.
+                                                        SOP                  System1     System1  88.85%
+          192.8 to 193.2 THz           Soft bending  signatures      S1      System2     System2  98.63%
+        Spectrum-as-a-Service                                        S2      System1     System2  8.11%
+C-band                                               XGBoost         S3      System2     System1  60.59%
+  ELS           HEAnet                               classifier      S4    System1+2   System1+2  91.11%
+ Laser                                                               S5
+
+                network
+
+PM fiber        77 km        SM G.652
+
+        System setup 2 (C-band HEAnet network)
+
+                Experimental Setup
+
+                                                                                                                  5
+Latest Advances: Real-World SOP Sensing Over HEAnet In-
+frastructure
+
+· Main Problem: Impact of signal modulation on SOP
+   signatures and ML classification (JLT 2025).
+
+rlxuml 96.2% 0.4% 3.2% 0.1%                         rlxml 100.0% 0.0% 0.0% 0.0%
+
+True label
+                               True label
+ eavuml 0.8% 98.6% 0.6% 0.0%                    eavml 0.3% 99.6% 0.0% 0.1%
+ sbduml 4.2% 0.3% 94.6% 1.0%                    sbdml 0.3% 1.0% 96.7% 2.1%
+80vbuml 0.3% 0.0% 0.7% 99.0%                   80vbml 0.0% 0.1% 2.2% 97.6%
+
+     rlxuml Peraevudmlictsebddumlla8b0vebluml       rlxml Peraevdmlictesbddmll ab80evbl ml
+
+1.0  Unmodulated                                    Modulated
+
+Accuracy0.8
+
+0.6      0.9712
+            0.9847
+0.4                     0.9705
+                            0.9847
+                                        0.9642
+                                           0.9760
+0.2
+
+0.0 XGBoost                                    HGB  GB                                      6
+ Thank You For Your
+        Attention.
+
+https://www.linkedin.com/in/leyla-sadighi/
+                     sadighil@tcd.ie
+
