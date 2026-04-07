@@ -350,6 +350,80 @@ def plot_dop_vs_time_overlay(dataset_dir, output_dir, t_start=0, t_end=60,
                              dop_thresh=0.2):
     print("  [SKIP] dop_vs_time_overlay — not available in windowed pipeline.")
 
+# First, append the new function and update generate_all_plots
+# ---------------------------------------------------------------------------
+# 14. Learning curves (RF and SVM)
+# ---------------------------------------------------------------------------
+
+def plot_learning_curves(X_arr, y_ev, output_dir):
+    """Plot training vs cross-validation accuracy as training size grows."""
+    from sklearn.model_selection import learning_curve
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.svm import SVC
+    from sklearn.pipeline import Pipeline
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.impute import SimpleImputer
+
+    _ensure_dir(output_dir)
+
+    def make_rf():
+        return Pipeline([
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scaler",  StandardScaler()),
+            ("clf",     RandomForestClassifier(n_estimators=200, random_state=42)),
+        ])
+
+    def make_svm():
+        return Pipeline([
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scaler",  StandardScaler()),
+            ("clf",     SVC(kernel="rbf", C=10, gamma="scale", random_state=42)),
+        ])
+
+    train_sizes = np.linspace(0.1, 1.0, 8)
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+    for ax, (name, estimator) in zip(axes, [("Random Forest", make_rf()),
+                                             ("SVM",           make_svm())]):
+        train_sz, train_scores, val_scores = learning_curve(
+            estimator, X_arr, y_ev,
+            train_sizes=train_sizes,
+            cv=5,
+            scoring="accuracy",
+            shuffle=True,
+            random_state=42,
+            n_jobs=-1,
+        )
+
+        train_mean = train_scores.mean(axis=1)
+        train_std  = train_scores.std(axis=1)
+        val_mean   = val_scores.mean(axis=1)
+        val_std    = val_scores.std(axis=1)
+
+        ax.plot(train_sz, train_mean, "o-", color="#1f77b4", label="Training accuracy")
+        ax.fill_between(train_sz,
+                        train_mean - train_std,
+                        train_mean + train_std,
+                        alpha=0.15, color="#1f77b4")
+
+        ax.plot(train_sz, val_mean, "o-", color="#ff7f0e", label="CV accuracy")
+        ax.fill_between(train_sz,
+                        val_mean - val_std,
+                        val_mean + val_std,
+                        alpha=0.15, color="#ff7f0e")
+
+        ax.set_title(f"Learning curve — {name}")
+        ax.set_xlabel("Training set size")
+        ax.set_ylabel("Accuracy")
+        ax.set_ylim([0.0, 1.05])
+        ax.legend(loc="lower right")
+        ax.grid(True, linestyle="--", alpha=0.5)
+
+    plt.suptitle("Learning curves (stratified 5-fold CV)", y=1.02)
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, "learning_curves.png"), dpi=120)
+    plt.close()
 
 def generate_all_plots(X, y_event, y_source, results, feature_names,
                        dataset_dir, output_dir):
@@ -390,3 +464,5 @@ def generate_all_plots(X, y_event, y_source, results, feature_names,
         print("  v per_source_accuracy.png")
 
         plot_dop_vs_time_overlay(dataset_dir, output_dir)
+        plot_learning_curves(results["X_scaled"], y_event.values, output_dir)
+        print("  v learning_curves.png")
