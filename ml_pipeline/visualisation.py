@@ -17,6 +17,7 @@ import matplotlib.patches as mpatches
 from matplotlib.patches import Ellipse
 import seaborn as sns
 from sklearn.decomposition import PCA
+from sklearn.model_selection import learning_curve
 
 # Consistent colour scheme
 EVENT_COLOURS = {
@@ -469,6 +470,76 @@ def plot_dop_vs_time_overlay(dataset_dir, output_dir, t_start=0, t_end=60,
 
 
 # ---------------------------------------------------------------------------
+# Learning curves (RF and SVM)
+# ---------------------------------------------------------------------------
+
+def plot_learning_curves(final_rf, final_svm, X_arr, y_event, output_dir):
+    """Plot learning curves for RF and SVM using the full sklearn pipelines."""
+    _ensure_dir(output_dir)
+
+    train_sizes_rel = np.linspace(0.1, 1.0, 10)
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+    models = [
+        (final_rf,  "Learning Curve \u2014 RF",  axes[0]),
+        (final_svm, "Learning Curve \u2014 SVM", axes[1]),
+    ]
+
+    for model, title, ax in models:
+        train_sizes_abs, train_scores, cv_scores = learning_curve(
+            model, X_arr, y_event,
+            train_sizes=train_sizes_rel,
+            cv=5,
+            scoring="accuracy",
+            n_jobs=-1,
+        )
+
+        train_mean = train_scores.mean(axis=1)
+        train_std  = train_scores.std(axis=1)
+        cv_mean    = cv_scores.mean(axis=1)
+        cv_std     = cv_scores.std(axis=1)
+
+        # Training score — blue
+        ax.plot(train_sizes_abs, train_mean, color="#1f77b4",
+                linewidth=1.8, label="Training score")
+        ax.fill_between(train_sizes_abs,
+                         train_mean - train_std, train_mean + train_std,
+                         alpha=0.2, color="#1f77b4")
+
+        # CV score — orange
+        ax.plot(train_sizes_abs, cv_mean, color="#ff7f0e",
+                linewidth=1.8, label="CV score (5-fold)")
+        ax.fill_between(train_sizes_abs,
+                         cv_mean - cv_std, cv_mean + cv_std,
+                         alpha=0.2, color="#ff7f0e")
+
+        # Horizontal dashed line at final CV accuracy
+        final_cv = cv_mean[-1]
+        ax.axhline(final_cv, color="#ff7f0e", linestyle="--",
+                   linewidth=1.0, alpha=0.7)
+
+        # Annotate gap at full data
+        gap = train_mean[-1] - cv_mean[-1]
+        ax.annotate(f"Gap: {gap:.2f}",
+                    xy=(train_sizes_abs[-1], (train_mean[-1] + cv_mean[-1]) / 2),
+                    xytext=(-60, 0), textcoords="offset points",
+                    fontsize=9, color="dimgrey",
+                    arrowprops=dict(arrowstyle="->", color="dimgrey"))
+
+        ax.set_title(title)
+        ax.set_xlabel("Number of training samples")
+        ax.set_ylabel("Accuracy")
+        ax.set_ylim([0, 1.05])
+        ax.legend(loc="lower right", fontsize=9)
+        ax.grid(True, linestyle=":", alpha=0.5)
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, "learning_curves.png"), dpi=120)
+    plt.close()
+
+
+# ---------------------------------------------------------------------------
 # Master function: generate all plots
 # ---------------------------------------------------------------------------
 
@@ -479,6 +550,7 @@ def generate_all_plots(X, y_event, y_source, results, feature_names,
         warnings.simplefilter("ignore")
 
         X_scaled = results["X_scaled"]
+        X_arr = X.values.astype(float)
         km_res = results["kmeans"]
 
         plot_dop_distributions(X, y_event, y_source, output_dir)
@@ -512,3 +584,7 @@ def generate_all_plots(X, y_event, y_source, results, feature_names,
 
         plot_dop_vs_time_overlay(dataset_dir, output_dir)
         print("  ✓ dop_vs_time_overlay.png")
+
+        plot_learning_curves(results["final_rf"], results["final_svm"],
+                             X_arr, y_event, output_dir)
+        print("  ✓ learning_curves.png")
