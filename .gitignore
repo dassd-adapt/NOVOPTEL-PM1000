@@ -1,4 +1,6 @@
 ml_pipeline/outputs/
+new_ml_pipeline/outputs/
 __pycache__/
 *.pyc
 *.pyo
+*.pkl
