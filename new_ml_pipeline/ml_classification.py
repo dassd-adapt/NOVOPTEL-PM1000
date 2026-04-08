@@ -42,6 +42,8 @@ from sklearn.metrics import (
 
 from xgboost import XGBClassifier
 
+from feature_extraction import FFT_BIN_COLS, FFT_N_BINS
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -49,7 +51,7 @@ from xgboost import XGBClassifier
 SOURCES = ["SP-AGIL", "SP-PURE", "DPQAM16-200G", "DPQPSK-200G", "10GE"]
 EVENTS  = ["NE", "FS", "VB", "MB", "TAP"]
 
-# All 41 features: 34 TD + 9 FD — computed unconditionally for every window
+# All features: 1 is_modulated + 30 TD + 9 FD Welch scalars + 1001 FFT bins = 1041
 FEATURE_COLS: list[str] = [
     # TD — DOP (4)
     "dop_mean", "dop_std", "dop_min", "dop_max",
@@ -66,13 +68,15 @@ FEATURE_COLS: list[str] = [
     "range_theta_ref", "p95_theta_ref",
     # TD — raw Stokes trajectory variability (6)
     "s1_std", "s2_std", "s3_std", "s1_range", "s2_range", "s3_range",
-    # FD — PSD features (9)
+    # FD — Welch PSD scalar summaries (9)
     "psd_peak_freq", "psd_peak_power",
     "bp_low", "bp_mid", "bp_high",
     "bp_ratio_mid_low", "psd_peak_sharpness",
     "spectral_entropy", "vb_snr_80hz_db",
     # Modulation flag — input feature (not a gate)
     "is_modulated",
+    # FD — raw FFT magnitude bins (1001 bins: fft_bin_0 … fft_bin_1000)
+    *FFT_BIN_COLS,
 ]
 
 # ---------------------------------------------------------------------------
