@@ -69,6 +69,15 @@ BAND_HIGH = (100.0, 500.0)
 MODULATED_SOURCES = {"DPQAM16-200G", "DPQPSK-200G"}
 
 # ---------------------------------------------------------------------------
+# FFT feature constants
+# ---------------------------------------------------------------------------
+# Canonical FFT size — at 2 kHz with 1 s windows, N ≈ 2000
+# rfft output size = N//2 + 1; we use 1001 bins (covers 0–1000 Hz at 1 Hz resolution)
+FFT_N_CANONICAL: int = 2000       # canonical window length for FFT
+FFT_N_BINS: int = FFT_N_CANONICAL // 2 + 1   # = 1001 bins
+FFT_BIN_COLS: list[str] = [f"fft_bin_{k}" for k in range(FFT_N_BINS)]
+
+# ---------------------------------------------------------------------------
 # Output paths
 # ---------------------------------------------------------------------------
 
@@ -231,10 +240,15 @@ def extract_window_features(
     win: pd.DataFrame,
     s_ref: np.ndarray,
 ) -> dict:
-    """Compute all 41 features for a single 1-second window *win*.
+    """Compute all features for a single 1-second window *win*.
 
     ALL Time Domain AND Frequency Domain features are computed unconditionally
     for every window, regardless of source type or event type.
+
+    Returns a dict containing:
+    - 30 TD scalar features
+    - 9 FD Welch PSD scalar summaries
+    - 1001 FD raw FFT magnitude bins (fft_bin_0 … fft_bin_1000)
 
     Parameters
     ----------
@@ -349,55 +363,59 @@ def extract_window_features(
     s3_range = float(np.nanmax(s123[:, 2]) - np.nanmin(s123[:, 2]))
 
     # ------------------------------------------------------------------ #
-    #  FREQUENCY DOMAIN FEATURES  (computed unconditionally for ALL      #
-    #  sources and events — no is_modulated gating)                      #
+    #  FREQUENCY DOMAIN FEATURES — raw FFT magnitude spectrum            #
+    #                                                                     #
+    #  x = ‖ŝ - ŝ_ref‖: SOP displacement from per-file reference        #
+    #  FFT input size N → rfft output size N//2 + 1                      #
+    #  Zero-pad or truncate to FFT_N_CANONICAL for consistent bin count  #
+    #  Each bin is a separate feature, time-aligned to this 1-second     #
+    #  window. fft_bin_k corresponds to frequency k * (fs/N) Hz.        #
     # ------------------------------------------------------------------ #
-    # x = displacement of SOP from the per-file reference: ‖ŝ - ŝ_ref‖
-    # With 1 s windows at 2 kHz, nperseg=512 → frequency resolution = 1 Hz.
-    # The 80 Hz VB peak is well-resolved; vb_snr_80hz_db is source-normalised
-    # so it generalises across SP and DP sources.
 
     if valid_rows.sum() >= 2 and not np.any(np.isnan(s_ref)):
-        x       = np.linalg.norm(unit_gated[valid_rows] - s_ref, axis=1)
+        x = np.linalg.norm(unit_gated[valid_rows] - s_ref, axis=1)
+
+        # Zero-pad or truncate to canonical length for consistent feature size
+        N = FFT_N_CANONICAL
+        if len(x) >= N:
+            x_padded = x[:N]
+        else:
+            x_padded = np.zeros(N)
+            x_padded[:len(x)] = x
+
+        # Compute FFT magnitude spectrum
+        # rfft gives N//2+1 = FFT_N_BINS complex coefficients
+        fft_magnitudes = np.abs(np.fft.rfft(x_padded))   # shape: (FFT_N_BINS,)
+
+        # Also compute the 9 Welch-based scalar summaries from the same x signal
+        # (keep these as additional aggregate features for the classifiers)
         nperseg = min(512, len(x))
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             f_psd, pxx = welch(x, fs=fs, nperseg=nperseg)
 
         if len(pxx) > 0 and pxx.sum() > 0:
-            peak_idx       = int(np.argmax(pxx))
-            psd_peak_freq  = float(f_psd[peak_idx])
-            psd_peak_power = float(pxx[peak_idx])
-
-            bp_low  = _band_power(f_psd, pxx, *BAND_LOW)
-            bp_mid  = _band_power(f_psd, pxx, *BAND_MID)
-            bp_high = _band_power(f_psd, pxx, *BAND_HIGH)
-
+            peak_idx           = int(np.argmax(pxx))
+            psd_peak_freq      = float(f_psd[peak_idx])
+            psd_peak_power     = float(pxx[peak_idx])
+            bp_low             = _band_power(f_psd, pxx, *BAND_LOW)
+            bp_mid             = _band_power(f_psd, pxx, *BAND_MID)
+            bp_high            = _band_power(f_psd, pxx, *BAND_HIGH)
             bp_ratio_mid_low   = bp_mid / (bp_low + 1e-12)
             psd_peak_sharpness = psd_peak_power / (float(np.mean(pxx)) + 1e-12)
             spectral_entropy   = _spectral_entropy(pxx)
-
-            # vb_snr_80hz_db: SNR of 75–85 Hz band vs local noise floor
-            # (10–200 Hz excluding 75–85 Hz).
-            # Source-normalised → generalises across SP and DP sources.
-            vb_band_idx  = (f_psd >= 75) & (f_psd <= 85)
-            noise_idx    = (f_psd >= 10) & (f_psd <= 200) & ~vb_band_idx
-            vb_power     = float(np.mean(pxx[vb_band_idx])) if vb_band_idx.any() else 0.0
-            noise_floor  = float(np.mean(pxx[noise_idx]))   if noise_idx.any()  else 1e-12
-            if noise_floor > 0 and vb_power > 0:
-                vb_snr_80hz_db = float(10.0 * np.log10(vb_power / noise_floor))
-            else:
-                vb_snr_80hz_db = 0.0
+            vb_band_idx        = (f_psd >= 75) & (f_psd <= 85)
+            noise_idx          = (f_psd >= 10) & (f_psd <= 200) & ~vb_band_idx
+            vb_power           = float(np.mean(pxx[vb_band_idx])) if vb_band_idx.any() else 0.0
+            noise_floor        = float(np.mean(pxx[noise_idx]))   if noise_idx.any()  else 1e-12
+            vb_snr_80hz_db     = float(10.0 * np.log10(vb_power / noise_floor)) if (noise_floor > 0 and vb_power > 0) else 0.0
         else:
-            (psd_peak_freq, psd_peak_power,
-             bp_low, bp_mid, bp_high,
-             bp_ratio_mid_low, psd_peak_sharpness,
-             spectral_entropy, vb_snr_80hz_db) = (0.0,) * 9
+            psd_peak_freq = psd_peak_power = bp_low = bp_mid = bp_high = 0.0
+            bp_ratio_mid_low = psd_peak_sharpness = spectral_entropy = vb_snr_80hz_db = 0.0
     else:
-        (psd_peak_freq, psd_peak_power,
-         bp_low, bp_mid, bp_high,
-         bp_ratio_mid_low, psd_peak_sharpness,
-         spectral_entropy, vb_snr_80hz_db) = (0.0,) * 9
+        fft_magnitudes = np.zeros(FFT_N_BINS)
+        psd_peak_freq = psd_peak_power = bp_low = bp_mid = bp_high = 0.0
+        bp_ratio_mid_low = psd_peak_sharpness = spectral_entropy = vb_snr_80hz_db = 0.0
 
     # ------------------------------------------------------------------ #
     #  Assemble feature row                                               #
@@ -450,6 +468,9 @@ def extract_window_features(
         "psd_peak_sharpness": psd_peak_sharpness,
         "spectral_entropy":   spectral_entropy,
         "vb_snr_80hz_db":     vb_snr_80hz_db,
+        # FD — raw FFT magnitude bins (FFT_N_BINS = 1001 features)
+        # fft_bin_k = |X[k]| where X = rfft(x), frequency = k * (fs/N) Hz
+        **{f"fft_bin_{k}": float(fft_magnitudes[k]) for k in range(FFT_N_BINS)},
     }
 
     # Replace any remaining NaN / inf with 0
@@ -570,7 +591,7 @@ def main() -> None:
 
     OUTPUT_CSV.parent.mkdir(parents=True, exist_ok=True)
 
-    # Column order — metadata + is_modulated + 34 TD + 9 FD = 41 features
+    # Column order — metadata (7) + features: is_modulated (1) + 30 TD + 9 FD scalars + 1001 FFT bins = 1041 features
     columns = [
         "source", "event", "date", "replicate", "window_idx",
         "t_start_s", "t_end_s",
@@ -585,16 +606,18 @@ def main() -> None:
         "kurtosis_step", "skew_step",
         # TD — burst / arc / autocorr (3)
         "burst_count", "cum_arc", "step_autocorr_lag1",
-        # TD — θ_ref (6)
+        # TD — theta_ref (6)
         "theta_mean", "theta_std", "theta_max", "theta_rms",
         "range_theta_ref", "p95_theta_ref",
         # TD — raw Stokes (6)
         "s1_std", "s2_std", "s3_std", "s1_range", "s2_range", "s3_range",
-        # FD (9)
+        # FD — Welch PSD scalar summaries (9, kept for interpretability)
         "psd_peak_freq", "psd_peak_power",
         "bp_low", "bp_mid", "bp_high",
         "bp_ratio_mid_low", "psd_peak_sharpness",
         "spectral_entropy", "vb_snr_80hz_db",
+        # FD — raw FFT magnitude bins (1001 bins, 0–1000 Hz at 1 Hz resolution)
+        *FFT_BIN_COLS,
     ]
 
     out_df = pd.DataFrame(all_rows, columns=columns)
@@ -616,7 +639,7 @@ def main() -> None:
     print(f"{'TOTAL':<8} {total_files:>6} {total_windows:>8}")
     print()
     print(f"Total windows  : {total_windows} across {total_files} files")
-    print(f"Features/window: 41 (TD + FD, unconditional)")
+    print(f"Features/window: {1 + 30 + 9 + FFT_N_BINS} (1 is_modulated + 30 TD + 9 FD scalars + {FFT_N_BINS} FFT bins)")
     print(f"Output         : {OUTPUT_CSV}")
 
 
