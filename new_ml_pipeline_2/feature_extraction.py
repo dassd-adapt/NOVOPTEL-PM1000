@@ -443,11 +443,16 @@ def source_normalise_features(df: pd.DataFrame, feature_cols: list[str]) -> pd.D
     the NE baseline regardless of source type.
     """
     df_out = df.copy()
-
+    
     cols_to_normalise = [c for c in feature_cols if c not in _NORMALISE_EXCLUDE]
+<<<<<<< HEAD
     # Cast all normalised columns to float64 up front to avoid int64 dtype rejection
     df_out[cols_to_normalise] = df_out[cols_to_normalise].astype(float)
 
+=======
+    df_out[cols_to_normalise] = df_out[cols_to_normalise].astype(float)
+    
+>>>>>>> cfb7bf9 (your description of the changes)
     for src in df["source"].unique():
         src_mask = df["source"] == src
         ne_mask  = src_mask & (df["event"] == "NE")
