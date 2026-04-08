@@ -23,6 +23,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+from ml_classification import loso_learning_curve
+
 # ---------------------------------------------------------------------------
 # Colour constants
 # ---------------------------------------------------------------------------
@@ -191,8 +193,6 @@ def generate_loso_learning_curves(
     output_dir: str,
 ) -> None:
     """Compute and plot LOSO learning curves for all 5 sources."""
-    from ml_classification import loso_learning_curve
-
     _ensure_dir(output_dir)
     X_arr   = X.values.astype(float)
     y_arr   = y_event.values
@@ -230,8 +230,6 @@ def _plot_combined_learning_curves(
     output_dir: str,
 ) -> None:
     """5×3 grid: rows=sources, cols=models."""
-    from ml_classification import loso_learning_curve
-
     present_sources = [s for s in SOURCES if s in per_source_results]
     n_src = len(present_sources)
     if n_src == 0:

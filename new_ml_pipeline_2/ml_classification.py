@@ -41,8 +41,7 @@ from xgboost import XGBClassifier
 
 # Import FFT constants from feature_extraction in same directory
 import sys
-import os as _os
-sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from feature_extraction import FFT_BIN_COLS, FFT_N_BINS  # noqa: E402
 
 # ---------------------------------------------------------------------------
