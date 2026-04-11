@@ -1673,7 +1673,7 @@ def save_performance_txt(
                 )
 
     txt = "\n".join(lines)
-    (out_dir / "model_performance.txt").write_text(txt)
+    (out_dir / "model_performance.txt").write_text(txt, encoding="utf-8")
     logger.info("  Saved model_performance.txt")
 
 
